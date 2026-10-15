@@ -1,30 +1,90 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:rokuzen_connect/main.dart';
+import 'package:rokuzen_connect/core/formatadores.dart';
+import 'package:rokuzen_connect/data/models/modelos.dart';
+import 'package:rokuzen_connect/data/repositorio_demonstracao.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('Formatadores', () {
+    test('máscara de telefone', () {
+      expect(mascaraTelefone('11999991234'), '(11) 99999-1234');
+      expect(mascaraTelefone('119'), '(11) 9');
+      expect(mascaraTelefone(''), '');
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('durações e contagem regressiva', () {
+      expect(duracaoTexto(45), '45 min');
+      expect(duracaoTexto(90), '1h30');
+      expect(duracaoTexto(120), '2h');
+      expect(contagemRegressiva(25), 'em 25 min');
+      expect(contagemRegressiva(0), 'Agora');
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('datas em português', () {
+      final d = DateTime(2026, 10, 2);
+      expect(dataPorExtenso(d), 'Sexta-feira, 2 de outubro');
+      expect(intervaloDatas(DateTime(2026, 9, 28), DateTime(2026, 10, 4)),
+          '28 set – 4 out');
+      expect(inicioDaSemana(d), DateTime(2026, 9, 28));
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('busca ignora acentos', () {
+      expect(normalizar('Vinícius'), 'vinicius');
+    });
+  });
+
+  group('Regras da Rokuzen', () {
+    const mariana = Terapeuta(
+      id: 1,
+      nome: 'Mariana',
+      unidade: Unidades.moocaPlaza,
+      inicioTurno: 600,
+      fimTurno: 960,
+    );
+
+    test('domingo é sempre das 14h às 20h', () {
+      expect(mariana.turnoTexto(DateTime(2026, 10, 4)), '14:00 – 20:00');
+      expect(mariana.turnoTexto(DateTime(2026, 10, 2)), '10:00 – 16:00');
+    });
+
+    test('adicional de Auriculoterapia entra na duração', () {
+      final a = Atendimento(
+        id: 1,
+        pacienteId: 2,
+        pacienteNome: 'Ricardo Mendes',
+        inicio: DateTime(2026, 10, 2, 15),
+        servico: Servico.reflexologiaPodal,
+        duracao: 30,
+        adicionalAuriculo: 10,
+        unidade: Unidades.moocaPlaza,
+        sala: 'Sala 2',
+        status: StatusAtendimento.confirmado,
+      );
+      expect(a.horarioTexto, '15:00 – 15:40 · 40 min');
+      expect(a.servicoCompleto,
+          'Reflexologia Podal · 30 min + Auriculoterapia 10 min');
+    });
+  });
+
+  group('Dados de demonstração', () {
+    test('sexta, 2 de outubro, tem 5 atendimentos (1 cancelado)', () async {
+      final repo = RepositorioDemonstracao();
+      final dia = DateTime(2026, 10, 2);
+      final lista =
+          await repo.buscarAtendimentos(dia, DateTime(2026, 10, 3));
+      expect(lista.length, 5);
+      expect(lista.where((a) => !a.status.inativo).length, 4);
+      // Nenhum serviço de Maca exibe modalidade.
+      expect(lista.every((a) => !a.servicoTexto.contains('Shiatsu')), isTrue);
+    });
+
+    test('Ana Paula tem 8 sessões concluídas', () async {
+      final repo = RepositorioDemonstracao();
+      final lista = await repo.buscarAtendimentosDoPaciente(1);
+      expect(
+        lista.where((a) => a.status == StatusAtendimento.concluido).length,
+        8,
+      );
+    });
   });
 }

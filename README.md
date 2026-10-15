@@ -1,17 +1,47 @@
-# rokuzen_connect
+# Rokuzen Connect
 
-A new Flutter project.
+App mobile do terapeuta da Rokuzen (Projeto Integrador Interdisciplinar ·
+TTI206 · Instituto Mauá de Tecnologia). Feito em Flutter/Dart, roda em Android
+e iOS.
 
-## Getting Started
+## Como rodar
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+### Login (modo de demonstração)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Enquanto o app não está ligado ao banco, o login aceita **qualquer e-mail
+terminado em `@gmail.com`** e **qualquer senha**. O "agora" do app fica parado
+em sexta-feira, 2 de outubro de 2026, 13:35, para bater com os dados de
+exemplo. Isso é controlado em `lib/core/app_config.dart`.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Telas
+
+- **Login**, com "Lembrar de mim" e "Esqueci minha senha".
+- **Início**: progresso do dia, próximo atendimento (iniciar/finalizar) e
+  linha do dia.
+- **Agenda**: visões Dia e Semana, navegação entre semanas e atalho "Hoje".
+- **Pacientes**: busca, ordenação, perfil, histórico completo e cadastro/edição.
+- **Disponibilidade**: calendário, horários particulares fora do expediente,
+  repetição semanal e validação de conflitos.
+
+## Estrutura
+
+```
+lib/
+  core/        cores, tipografia, tema, configuração e formatadores (pt-BR)
+  data/        modelos e repositório (origem dos dados)
+  widgets/     componentes compartilhados (botões, campos, linha do tempo…)
+  features/    uma pasta por tela
+backend/       API em Dart que lê o banco da Rokuzen
+docs/          documentação
+```
+
+## Dados
+
+O app ainda **não lê nem grava** no banco da Rokuzen. Os dados vêm de
+`lib/data/repositorio_demonstracao.dart`. Para ligar ao banco, siga
+[`docs/INTEGRACAO_BANCO.md`](docs/INTEGRACAO_BANCO.md).
