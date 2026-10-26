@@ -15,6 +15,8 @@ import 'folha_paciente.dart';
 import 'tela_perfil_paciente.dart';
 
 enum _Ordem { recentes, az }
+int _numeroLocal(String id) =>
+    int.tryParse(id.replaceFirst('local-', '')) ?? 0;
 
 /// Aba "Pacientes": busca, ordenação e lista de pacientes.
 class TelaPacientes extends StatefulWidget {
@@ -36,7 +38,7 @@ class _TelaPacientesState extends State<TelaPacientes> {
   final _busca = TextEditingController();
   final _focoBusca = FocusNode();
   _Ordem _ordem = _Ordem.recentes;
-  int? _destaque;
+  String? _destaque;
   Aviso? _aviso;
   Timer? _timerAviso;
 
@@ -75,7 +77,7 @@ class _TelaPacientesState extends State<TelaPacientes> {
     });
   }
 
-  void _abrirPerfil(int id) {
+  void _abrirPerfil(String id) {
     _timerAviso?.cancel();
     setState(() {
       _aviso = null;
@@ -122,7 +124,10 @@ class _TelaPacientesState extends State<TelaPacientes> {
       lista.sort((a, b) {
         final g = grupo(a).compareTo(grupo(b));
         if (g != 0) return g;
-        if (a.paciente.novo) return b.paciente.id.compareTo(a.paciente.id);
+        if (a.paciente.novo) {
+          return _numeroLocal(b.paciente.id)
+              .compareTo(_numeroLocal(a.paciente.id));
+        }
         if (a.atendimentoHoje != null) {
           return a.atendimentoHoje!.inicio.compareTo(b.atendimentoHoje!.inicio);
         }
