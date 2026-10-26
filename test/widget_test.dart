@@ -35,7 +35,7 @@ void main() {
 
   group('Regras da Rokuzen', () {
     const mariana = Terapeuta(
-      id: 1,
+      id: '1',
       nome: 'Mariana',
       unidade: Unidades.moocaPlaza,
       inicioTurno: 600,
@@ -49,8 +49,8 @@ void main() {
 
     test('adicional de Auriculoterapia entra na duração', () {
       final a = Atendimento(
-        id: 1,
-        pacienteId: 2,
+        id: '1',
+        pacienteId: '2',
         pacienteNome: 'Ricardo Mendes',
         inicio: DateTime(2026, 10, 2, 15),
         servico: Servico.reflexologiaPodal,
@@ -80,7 +80,7 @@ void main() {
 
     test('Ana Paula tem 8 sessões concluídas', () async {
       final repo = RepositorioDemonstracao();
-      final lista = await repo.buscarAtendimentosDoPaciente(1);
+      final lista = await repo.buscarAtendimentosDoPaciente('1');
       expect(
         lista.where((a) => a.status == StatusAtendimento.concluido).length,
         8,

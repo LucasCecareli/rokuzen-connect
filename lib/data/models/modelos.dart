@@ -61,7 +61,7 @@ class Terapeuta {
     required this.fimTurno,
   });
 
-  final int id;
+  final String id;
   final String nome;
   final String unidade;
 
@@ -92,7 +92,7 @@ class Paciente {
     this.novo = false,
   });
 
-  final int id;
+  final String id;
   final String nome;
   final String telefone;
   final String? email;
@@ -132,8 +132,8 @@ class Atendimento {
     required this.status,
   });
 
-  final int id;
-  final int pacienteId;
+  final String id;
+  final String pacienteId;
   final String pacienteNome;
   final DateTime inicio;
   final Servico servico;

@@ -20,7 +20,7 @@ class RepositorioDemonstracao extends RokuzenRepository {
   int _ultimoId = 1000;
 
   static const _terapeuta = Terapeuta(
-    id: 1,
+    id: '1',
     nome: 'Mariana',
     unidade: Unidades.moocaPlaza,
     inicioTurno: 10 * 60,
@@ -78,7 +78,7 @@ class RepositorioDemonstracao extends RokuzenRepository {
   }
 
   @override
-  Future<Paciente?> buscarPaciente(int id) async {
+  Future<Paciente?> buscarPaciente(String id) async {
     for (final p in _pacientes) {
       if (p.id == id) return p;
     }
@@ -86,7 +86,7 @@ class RepositorioDemonstracao extends RokuzenRepository {
   }
 
   @override
-  Future<List<Atendimento>> buscarAtendimentosDoPaciente(int pacienteId) async {
+    Future<List<Atendimento>> buscarAtendimentosDoPaciente(String pacienteId) async {
     await _atraso();
     return _ordenados(_atendimentos.where((a) => a.pacienteId == pacienteId))
         .reversed
@@ -105,7 +105,7 @@ class RepositorioDemonstracao extends RokuzenRepository {
   int novoId() => ++_ultimoId;
 
   @override
-  Future<void> alterarStatus(int atendimentoId, StatusAtendimento status) async {
+    Future<void> alterarStatus(String atendimentoId, StatusAtendimento status) async {
     final i = _atendimentos.indexWhere((a) => a.id == atendimentoId);
     if (i < 0) return;
     _atendimentos[i] = _atendimentos[i].comStatus(status);
@@ -120,7 +120,7 @@ class RepositorioDemonstracao extends RokuzenRepository {
     DateTime? nascimento,
   }) async {
     final paciente = Paciente(
-      id: novoId(),
+      id: 'local-${novoId()}',
       nome: nome,
       telefone: telefone,
       email: email,
@@ -193,20 +193,20 @@ class RepositorioDemonstracao extends RokuzenRepository {
   // ------------------------------------------------------- dados de exemplo
 
   static List<Paciente> _pacientesIniciais() => const [
-        Paciente(id: 1, nome: 'Ana Paula Martins', telefone: '(11) 99999-1234', email: 'ana@email.com'),
-        Paciente(id: 2, nome: 'Ricardo Mendes', telefone: '(11) 98765-4321'),
-        Paciente(id: 3, nome: 'Juliana Costa', telefone: '(11) 97654-3210'),
-        Paciente(id: 4, nome: 'Carlos Eduardo Rocha', telefone: '(11) 98888-4321'),
-        Paciente(id: 5, nome: 'Roberto Lima', telefone: '(11) 96543-2109'),
-        Paciente(id: 6, nome: 'Fernanda Lima', telefone: '(11) 97777-8899'),
-        Paciente(id: 7, nome: 'João Santos', telefone: '(11) 95555-0101'),
-        Paciente(id: 8, nome: 'Carlos Silva', telefone: '(11) 94444-0202'),
-        Paciente(id: 9, nome: 'Marina Alves', telefone: '(11) 93333-0303'),
-        Paciente(id: 10, nome: 'Beatriz Costa', telefone: '(11) 92222-0404'),
-        Paciente(id: 11, nome: 'Paulo Nunes', telefone: '(11) 91111-0505'),
-        Paciente(id: 12, nome: 'Marcos Vinícius', telefone: '(11) 98123-0606'),
-        Paciente(id: 13, nome: 'Luciana Prado', telefone: '(11) 97234-0707'),
-        Paciente(id: 14, nome: 'Rafael Souza', telefone: '(11) 96345-0808'),
+        Paciente(id: '1', nome: 'Ana Paula Martins', telefone: '(11) 99999-1234', email: 'ana@email.com'),
+        Paciente(id: '2', nome: 'Ricardo Mendes', telefone: '(11) 98765-4321'),
+        Paciente(id: '3', nome: 'Juliana Costa', telefone: '(11) 97654-3210'),
+        Paciente(id: '4', nome: 'Carlos Eduardo Rocha', telefone: '(11) 98888-4321'),
+        Paciente(id: '5', nome: 'Roberto Lima', telefone: '(11) 96543-2109'),
+        Paciente(id: '6', nome: 'Fernanda Lima', telefone: '(11) 97777-8899'),
+        Paciente(id: '7', nome: 'João Santos', telefone: '(11) 95555-0101'),
+        Paciente(id: '8', nome: 'Carlos Silva', telefone: '(11) 94444-0202'),
+        Paciente(id: '9', nome: 'Marina Alves', telefone: '(11) 93333-0303'),
+        Paciente(id: '10', nome: 'Beatriz Costa', telefone: '(11) 92222-0404'),
+        Paciente(id: '11', nome: 'Paulo Nunes', telefone: '(11) 91111-0505'),
+        Paciente(id: '12', nome: 'Marcos Vinícius', telefone: '(11) 98123-0606'),
+        Paciente(id: '13', nome: 'Luciana Prado', telefone: '(11) 97234-0707'),
+        Paciente(id: '14', nome: 'Rafael Souza', telefone: '(11) 96345-0808'),
       ];
 
   static List<Atendimento> _atendimentosIniciais() {
@@ -225,9 +225,9 @@ class RepositorioDemonstracao extends RokuzenRepository {
     }) {
       final hm = minutosDeHora(horaInicio);
       return Atendimento(
-        id: ++id,
-        pacienteId: pacienteId,
-        pacienteNome: nomes[pacienteId]!,
+        id: '${++id}',
+        pacienteId: '$pacienteId',
+        pacienteNome: nomes['$pacienteId']!,
         inicio: DateTime(2026, mes, dia, hm ~/ 60, hm % 60),
         servico: servico,
         duracao: duracao,

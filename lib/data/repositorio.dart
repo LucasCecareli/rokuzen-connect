@@ -33,16 +33,16 @@ abstract class RokuzenRepository extends ChangeNotifier {
   /// Pacientes com o resumo usado na lista (última sessão, atendimento hoje).
   Future<List<PacienteResumo>> buscarPacientes(DateTime agora);
 
-  Future<Paciente?> buscarPaciente(int id);
+  Future<Paciente?> buscarPaciente(String id);
 
   /// Todos os atendimentos de um paciente, do mais recente para o mais antigo.
-  Future<List<Atendimento>> buscarAtendimentosDoPaciente(int pacienteId);
+  Future<List<Atendimento>> buscarAtendimentosDoPaciente(String pacienteId);
 
   /// Disponibilidades para atendimentos particulares.
   Future<List<Disponibilidade>> buscarDisponibilidades();
 
   // ------------------------------------------- ações locais (só em memória)
-  Future<void> alterarStatus(int atendimentoId, StatusAtendimento status);
+  Future<void> alterarStatus(String atendimentoId, StatusAtendimento status);
 
   Future<Paciente> cadastrarPaciente({
     required String nome,

@@ -23,7 +23,7 @@ import 'tela_historico_paciente.dart';
 /// sessões mais recentes.
 class TelaPerfilPaciente extends StatefulWidget {
   const TelaPerfilPaciente({super.key, required this.pacienteId});
-  final int pacienteId;
+  final String pacienteId;
 
   @override
   State<TelaPerfilPaciente> createState() => _TelaPerfilPacienteState();
