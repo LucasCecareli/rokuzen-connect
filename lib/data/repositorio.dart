@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'models/modelos.dart';
-import 'repositorio_demonstracao.dart';
+import 'repositorio_api.dart';
 
 /// Contrato de acesso aos dados do app.
 ///
@@ -70,4 +70,4 @@ abstract class RokuzenRepository extends ChangeNotifier {
 ///
 /// Hoje: dados de exemplo iguais aos do protótipo.
 /// Depois: troque por uma implementação que lê o backend da Rokuzen.
-final RokuzenRepository repositorio = RepositorioDemonstracao();
+final RokuzenRepository repositorio = RepositorioApi();

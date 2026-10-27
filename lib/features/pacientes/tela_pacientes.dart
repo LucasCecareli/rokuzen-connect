@@ -15,8 +15,8 @@ import 'folha_paciente.dart';
 import 'tela_perfil_paciente.dart';
 
 enum _Ordem { recentes, az }
-int _numeroLocal(String id) =>
-    int.tryParse(id.replaceFirst('local-', '')) ?? 0;
+
+int _numeroLocal(String id) => int.tryParse(id.replaceFirst('local-', '')) ?? 0;
 
 /// Aba "Pacientes": busca, ordenação e lista de pacientes.
 class TelaPacientes extends StatefulWidget {
@@ -41,6 +41,9 @@ class _TelaPacientesState extends State<TelaPacientes> {
   String? _destaque;
   Aviso? _aviso;
   Timer? _timerAviso;
+  static const _porPagina = 50;
+  int _limite = _porPagina;
+  final Map<String, String> _nomesSemAcento = {};
 
   @override
   void initState() {
@@ -83,9 +86,9 @@ class _TelaPacientesState extends State<TelaPacientes> {
       _aviso = null;
       _destaque = null;
     });
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => TelaPerfilPaciente(pacienteId: id),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TelaPerfilPaciente(pacienteId: id)),
+    );
   }
 
   Future<void> _novoPaciente() async {
@@ -96,12 +99,17 @@ class _TelaPacientesState extends State<TelaPacientes> {
       _ordem = _Ordem.recentes;
       _destaque = p.id;
     });
-    _mostrarAviso(Aviso(
-      texto: 'Paciente cadastrado',
-      acao: 'Ver perfil',
-      aoAcionar: () => _abrirPerfil(p.id),
-    ));
+    _mostrarAviso(
+      Aviso(
+        texto: 'Paciente cadastrado',
+        acao: 'Ver perfil',
+        aoAcionar: () => _abrirPerfil(p.id),
+      ),
+    );
   }
+
+  String _nomeBusca(Paciente p) =>
+      _nomesSemAcento.putIfAbsent(p.nome, () => normalizar(p.nome));
 
   List<PacienteResumo> _filtrados() {
     final todos = _pacientes ?? const <PacienteResumo>[];
@@ -109,13 +117,14 @@ class _TelaPacientesState extends State<TelaPacientes> {
     final dq = apenasDigitos(_busca.text);
     final lista = todos.where((r) {
       if (q.isEmpty) return true;
-      if (normalizar(r.paciente.nome).contains(q)) return true;
+      if (_nomeBusca(r.paciente).contains(q)) return true;
       return dq.length >= 3 && apenasDigitos(r.paciente.telefone).contains(dq);
     }).toList();
 
     if (_ordem == _Ordem.az) {
-      lista.sort((a, b) =>
-          normalizar(a.paciente.nome).compareTo(normalizar(b.paciente.nome)));
+      lista.sort(
+        (a, b) => _nomeBusca(a.paciente).compareTo(_nomeBusca(b.paciente)),
+      );
     } else {
       // Recentes: cadastrados agora, depois quem tem atendimento hoje (por
       // horário) e, por fim, pela última sessão.
@@ -125,14 +134,17 @@ class _TelaPacientesState extends State<TelaPacientes> {
         final g = grupo(a).compareTo(grupo(b));
         if (g != 0) return g;
         if (a.paciente.novo) {
-          return _numeroLocal(b.paciente.id)
-              .compareTo(_numeroLocal(a.paciente.id));
+          return _numeroLocal(
+            b.paciente.id,
+          ).compareTo(_numeroLocal(a.paciente.id));
         }
         if (a.atendimentoHoje != null) {
           return a.atendimentoHoje!.inicio.compareTo(b.atendimentoHoje!.inicio);
         }
         final ua = a.ultimaSessao, ub = b.ultimaSessao;
-        if (ua == null && ub == null) return 0;
+        if (ua == null && ub == null) {
+          return _nomeBusca(a.paciente).compareTo(_nomeBusca(b.paciente));
+        }
         if (ua == null) return 1;
         if (ub == null) return -1;
         return ub.compareTo(ua);
@@ -157,56 +169,58 @@ class _TelaPacientesState extends State<TelaPacientes> {
             bottom: false,
             child: SingleChildScrollView(
               padding: EdgeInsets.only(bottom: temPacientes ? 104 : 32),
-              child: LarguraConteudo(child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Positioned(
-                    top: -157,
-                    right: -120,
-                    child: AnelEnso(tamanho: 300, espessura: 13),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      CabecalhoTela(
-                        sobretitulo:
-                            '$total ${total == 1 ? 'PACIENTE' : 'PACIENTES'}',
-                        titulo: 'Pacientes',
-                        terapeuta: widget.terapeuta,
-                        aoSair: widget.aoSair,
-                      ),
-                      if (carregando)
-                        const _EsqueletoLista()
-                      else if (!temPacientes)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                          child: EstadoVazio(
-                            icone: Icons.group_outlined,
-                            titulo: 'Nenhum paciente ainda',
-                            texto:
-                                'Cadastre seu primeiro paciente para acompanhar sessões e horários.',
-                            acao: BotaoPrimario(
-                              rotulo: 'Novo paciente',
-                              icone: Icons.person_add_alt_1_outlined,
-                              aoPressionar: _novoPaciente,
-                            ),
-                          ),
-                        )
-                      else ...[
-                        _campoBusca(),
-                        _chipsOrdem(),
-                        if (lista.isEmpty)
-                          _semResultados()
-                        else
+              child: LarguraConteudo(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Positioned(
+                      top: -157,
+                      right: -120,
+                      child: AnelEnso(tamanho: 300, espessura: 13),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        CabecalhoTela(
+                          sobretitulo:
+                              '$total ${total == 1 ? 'PACIENTE' : 'PACIENTES'}',
+                          titulo: 'Pacientes',
+                          terapeuta: widget.terapeuta,
+                          aoSair: widget.aoSair,
+                        ),
+                        if (carregando)
+                          const _EsqueletoLista()
+                        else if (!temPacientes)
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                            child: _listaPacientes(lista),
-                          ),
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                            child: EstadoVazio(
+                              icone: Icons.group_outlined,
+                              titulo: 'Nenhum paciente ainda',
+                              texto:
+                                  'Cadastre seu primeiro paciente para acompanhar sessões e horários.',
+                              acao: BotaoPrimario(
+                                rotulo: 'Novo paciente',
+                                icone: Icons.person_add_alt_1_outlined,
+                                aoPressionar: _novoPaciente,
+                              ),
+                            ),
+                          )
+                        else ...[
+                          _campoBusca(),
+                          _chipsOrdem(),
+                          if (lista.isEmpty)
+                            _semResultados()
+                          else
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                              child: _listaPacientes(lista),
+                            ),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
-              )),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           if (temPacientes)
@@ -227,7 +241,9 @@ class _TelaPacientesState extends State<TelaPacientes> {
               bottom: 16,
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: Responsivo.larguraFolha),
+                  constraints: const BoxConstraints(
+                    maxWidth: Responsivo.larguraFolha,
+                  ),
                   child: AvisoFlutuante(aviso: _aviso!),
                 ),
               ),
@@ -268,22 +284,27 @@ class _TelaPacientesState extends State<TelaPacientes> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.search_rounded,
-                size: 24, color: AppColors.textoSuave),
+            const Icon(
+              Icons.search_rounded,
+              size: 24,
+              color: AppColors.textoSuave,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: TextField(
                 controller: _busca,
                 focusNode: _focoBusca,
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => setState(() => _limite = _porPagina),
                 textInputAction: TextInputAction.search,
                 style: AppText.s(16, peso: FontWeight.w500, altura: 24),
                 decoration: InputDecoration.collapsed(
                   hintText: 'Buscar por nome ou telefone',
-                  hintStyle: AppText.s(16,
-                      peso: FontWeight.w500,
-                      altura: 24,
-                      cor: AppColors.placeholder),
+                  hintStyle: AppText.s(
+                    16,
+                    peso: FontWeight.w500,
+                    altura: 24,
+                    cor: AppColors.placeholder,
+                  ),
                 ),
               ),
             ),
@@ -311,7 +332,10 @@ class _TelaPacientesState extends State<TelaPacientes> {
         selected: sel,
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          onTap: () => setState(() => _ordem = o),
+          onTap: () => setState(() {
+            _ordem = o;
+            _limite = _porPagina;
+          }),
           child: SizedBox(
             height: 48,
             child: Center(
@@ -323,23 +347,29 @@ class _TelaPacientesState extends State<TelaPacientes> {
                   color: sel ? AppColors.primariaSuave : AppColors.superficie,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: sel ? AppColors.primariaSuave : AppColors.contorno),
+                    color: sel ? AppColors.primariaSuave : AppColors.contorno,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (sel) ...[
-                      const Icon(Icons.check_rounded,
-                          size: 18, color: AppColors.primariaEscura),
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 18,
+                        color: AppColors.primariaEscura,
+                      ),
                       const SizedBox(width: 4),
                     ],
-                    Text(rotulo,
-                        style: AppText.s(13,
-                            altura: 16,
-                            peso: sel ? FontWeight.w700 : FontWeight.w500,
-                            cor: sel
-                                ? AppColors.primariaEscura
-                                : AppColors.texto)),
+                    Text(
+                      rotulo,
+                      style: AppText.s(
+                        13,
+                        altura: 16,
+                        peso: sel ? FontWeight.w700 : FontWeight.w500,
+                        cor: sel ? AppColors.primariaEscura : AppColors.texto,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -375,8 +405,11 @@ class _TelaPacientesState extends State<TelaPacientes> {
                 color: AppColors.primariaSuave,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.search_off_rounded,
-                  size: 32, color: AppColors.primariaForte),
+              child: const Icon(
+                Icons.search_off_rounded,
+                size: 32,
+                color: AppColors.primariaForte,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -402,21 +435,37 @@ class _TelaPacientesState extends State<TelaPacientes> {
   }
 
   Widget _listaPacientes(List<PacienteResumo> lista) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.superficie,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borda),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        type: MaterialType.transparency,
-        child: Column(
-          children: [
-            for (var i = 0; i < lista.length; i++) _linha(lista[i], i > 0),
-          ],
+    final visiveis = lista.take(_limite).toList();
+    final restantes = lista.length - visiveis.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.superficie,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borda),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              children: [
+                for (var i = 0; i < visiveis.length; i++)
+                  _linha(visiveis[i], i > 0),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (restantes > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: BotaoTexto(
+              rotulo: 'Mostrar mais ($restantes restantes)',
+              aoPressionar: () => setState(() => _limite += _porPagina),
+            ),
+          ),
+      ],
     );
   }
 
@@ -445,14 +494,21 @@ class _TelaPacientesState extends State<TelaPacientes> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(p.nome,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.s(15, peso: FontWeight.w600, altura: 20)),
+                    Text(
+                      p.nome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.s(15, peso: FontWeight.w600, altura: 20),
+                    ),
                     const SizedBox(height: 2),
-                    Text(p.telefone,
-                        style: AppText.s(13,
-                            altura: 18, cor: AppColors.textoSecundario)),
+                    Text(
+                      p.telefone,
+                      style: AppText.s(
+                        13,
+                        altura: 18,
+                        cor: AppColors.textoSecundario,
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       ultima == null
@@ -460,7 +516,11 @@ class _TelaPacientesState extends State<TelaPacientes> {
                           : 'Última sessão ${dataCurta(ultima)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppText.s(12, altura: 16, cor: AppColors.textoSuave),
+                      style: AppText.s(
+                        12,
+                        altura: 16,
+                        cor: AppColors.textoSuave,
+                      ),
                     ),
                   ],
                 ),
@@ -523,12 +583,17 @@ class _EsqueletoLista extends StatelessWidget {
                     decoration: BoxDecoration(
                       border: i > 0
                           ? const Border(
-                              top: BorderSide(color: AppColors.divisor))
+                              top: BorderSide(color: AppColors.divisor),
+                            )
                           : null,
                     ),
                     child: Row(
                       children: [
-                        const Esqueleto(largura: 48, altura: 48, circular: true),
+                        const Esqueleto(
+                          largura: 48,
+                          altura: 48,
+                          circular: true,
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
