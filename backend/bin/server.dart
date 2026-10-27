@@ -1,10 +1,10 @@
-
 import 'dart:convert';
 
 import 'package:backend/services/auth_service.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
+import 'package:backend/repositories/paciente_repository.dart';
 
 Middleware corsMiddleware() {
   return (Handler innerHandler) {
@@ -21,18 +21,15 @@ Middleware corsMiddleware() {
 
       final response = await innerHandler(request);
 
-      return response.change(
-        headers: {
-          ...response.headers,
-          ...headers,
-        },
-      );
+      return response.change(headers: {...response.headers, ...headers});
     };
   };
 }
+
 Future<void> main() async {
   final router = Router();
   final authService = AuthService();
+  final pacienteRepository = PacienteRepository();
 
   Map<String, String> jsonHeaders = {
     'Content-Type': 'application/json; charset=utf-8',
@@ -41,12 +38,31 @@ Future<void> main() async {
 
   router.get('/status', (Request request) {
     return Response.ok(
-      jsonEncode({
-        'success': true,
-        'message': 'API Rokuzen funcionando',
-      }),
+      jsonEncode({'success': true, 'message': 'API Rokuzen funcionando'}),
       headers: jsonHeaders,
     );
+  });
+
+  router.get('/pacientes', (Request request) async {
+    try {
+      final pacientes = await pacienteRepository.listarPacientes();
+
+      return Response.ok(
+        jsonEncode({'success': true, 'pacientes': pacientes}),
+        headers: jsonHeaders,
+      );
+    } catch (e) {
+      // Não revelar detalhes do banco ao aplicativo.
+      print('Erro interno ao listar pacientes: $e');
+
+      return Response.internalServerError(
+        body: jsonEncode({
+          'success': false,
+          'message': 'Erro interno do servidor.',
+        }),
+        headers: jsonHeaders,
+      );
+    }
   });
 
   router.post('/auth/login', (Request request) async {
@@ -56,10 +72,7 @@ Future<void> main() async {
       if (body is! Map<String, dynamic>) {
         return Response(
           400,
-          body: jsonEncode({
-            'success': false,
-            'message': 'Dados inválidos.',
-          }),
+          body: jsonEncode({'success': false, 'message': 'Dados inválidos.'}),
           headers: jsonHeaders,
         );
       }
@@ -81,10 +94,7 @@ Future<void> main() async {
         );
       }
 
-      final usuario = await authService.autenticar(
-        login: login,
-        senha: senha,
-      );
+      final usuario = await authService.autenticar(login: login, senha: senha);
 
       if (usuario == null) {
         return Response(
@@ -108,10 +118,7 @@ Future<void> main() async {
     } on FormatException {
       return Response(
         400,
-        body: jsonEncode({
-          'success': false,
-          'message': 'JSON inválido.',
-        }),
+        body: jsonEncode({'success': false, 'message': 'JSON inválido.'}),
         headers: jsonHeaders,
       );
     } catch (e) {
@@ -129,15 +136,11 @@ Future<void> main() async {
   });
 
   final handler = Pipeline()
-    .addMiddleware(logRequests())
-    .addMiddleware(corsMiddleware())
-    .addHandler(router.call);
+      .addMiddleware(logRequests())
+      .addMiddleware(corsMiddleware())
+      .addHandler(router.call);
 
-  final server = await shelf_io.serve(
-  handler,
-  '127.0.0.1',
-  8081,
-);
+  final server = await shelf_io.serve(handler, '127.0.0.1', 8081);
 
   print(
     'Servidor rodando em '
