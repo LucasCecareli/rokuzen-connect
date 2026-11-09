@@ -10,6 +10,7 @@ class Database {
     final database = env['DB_NAME'];
     final user = env['DB_USER'];
     final password = env['DB_PASSWORD'];
+    final secure = env['DB_SECURE'] == 'true';
 
     if (host == null ||
         database == null ||
@@ -24,7 +25,7 @@ class Database {
       userName: user,
       password: password,
       databaseName: database,
-      secure: false,
+      secure: secure,
     );
 
     await connection.connect();
