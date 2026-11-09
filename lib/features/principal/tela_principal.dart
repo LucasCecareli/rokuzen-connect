@@ -35,6 +35,7 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
   @override
   void initState() {
     super.initState();
+    _terapeuta = repositorio.terapeutaAtual;
     repositorio.buscarTerapeuta().then((t) {
       if (mounted) setState(() => _terapeuta = t);
     });

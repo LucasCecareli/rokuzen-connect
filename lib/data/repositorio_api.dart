@@ -3,7 +3,6 @@ import 'repositorio.dart';
 import 'repositorio_demonstracao.dart';
 import 'services/paciente_api_service.dart';
 
-
 class RepositorioApi extends RokuzenRepository {
   RepositorioApi() {
     // Repassa os avisos de mudança do repositório de demonstração às telas.
@@ -12,6 +11,17 @@ class RepositorioApi extends RokuzenRepository {
 
   final RepositorioDemonstracao _demo = RepositorioDemonstracao();
   final PacienteApiService _pacientesApi = PacienteApiService();
+
+  Terapeuta? _terapeutaLogado;
+
+  @override
+  Terapeuta? get terapeutaAtual => _terapeutaLogado ?? _demo.terapeutaAtual;
+
+  @override
+  void definirTerapeutaLogado(Terapeuta terapeuta) {
+    _terapeutaLogado = terapeuta;
+    notifyListeners();
+  }
 
   List<Paciente>? _doBanco; // lista vinda do backend (guardada após a 1ª busca)
   final List<Paciente> _locais = []; // cadastrados no aparelho
@@ -24,8 +34,6 @@ class RepositorioApi extends RokuzenRepository {
       for (final p in _doBanco!) _editados[p.id] ?? p,
     ];
   }
-
- 
 
   @override
   Future<List<PacienteResumo>> buscarPacientes(DateTime agora) async {
@@ -75,10 +83,11 @@ class RepositorioApi extends RokuzenRepository {
     return paciente;
   }
 
-  
-
   @override
-  Future<Terapeuta> buscarTerapeuta() => _demo.buscarTerapeuta();
+  Future<Terapeuta> buscarTerapeuta() async {
+    if (_terapeutaLogado != null) return _terapeutaLogado!;
+    return _demo.buscarTerapeuta();
+  }
 
   @override
   Future<List<Atendimento>> buscarAtendimentos(DateTime inicio, DateTime fim) =>

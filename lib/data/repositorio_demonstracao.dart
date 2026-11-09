@@ -19,13 +19,22 @@ class RepositorioDemonstracao extends RokuzenRepository {
   final List<Disponibilidade> _disponibilidades = [];
   int _ultimoId = 1000;
 
-  static const _terapeuta = Terapeuta(
+  Terapeuta _terapeuta = const Terapeuta(
     id: '1',
     nome: 'Mariana',
     unidade: Unidades.moocaPlaza,
     inicioTurno: 10 * 60,
     fimTurno: 16 * 60,
   );
+
+  @override
+  Terapeuta? get terapeutaAtual => _terapeuta;
+
+  @override
+  void definirTerapeutaLogado(Terapeuta terapeuta) {
+    _terapeuta = terapeuta;
+    notifyListeners();
+  }
 
   Future<void> _atraso() => Future.delayed(AppConfig.atrasoSimulado);
 

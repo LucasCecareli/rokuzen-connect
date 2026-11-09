@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
+import '../../data/models/modelos.dart';
+import '../../data/repositorio.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/login_preferences_service.dart';
 import '../../core/app_text.dart';
@@ -127,6 +129,17 @@ class _TelaLoginState extends State<TelaLogin> {
           }
         } catch (_) {
           // Falhas no armazenamento local não impedem o login.
+        }
+
+        final usuario = resultado['usuario'];
+        if (usuario is Map<String, dynamic>) {
+          repositorio.definirTerapeutaLogado(Terapeuta(
+            id: usuario['id']?.toString() ?? '1',
+            nome: usuario['nome']?.toString() ?? 'Terapeuta',
+            unidade: usuario['unidade']?.toString() ?? 'Golden Square',
+            inicioTurno: usuario['inicioTurno'] as int? ?? (10 * 60),
+            fimTurno: usuario['fimTurno'] as int? ?? (16 * 60),
+          ));
         }
 
         if (!mounted) return;

@@ -20,6 +20,9 @@ import 'repositorio_api.dart';
 /// O repositório avisa as telas quando algo muda ([ChangeNotifier]), para que
 /// Início, Agenda e Pacientes fiquem sempre sincronizados.
 abstract class RokuzenRepository extends ChangeNotifier {
+  Terapeuta? get terapeutaAtual;
+  void definirTerapeutaLogado(Terapeuta terapeuta);
+
   // ---------------------------------------------------------------- leitura
   Future<Terapeuta> buscarTerapeuta();
 

@@ -1,4 +1,3 @@
-
 import 'package:backend/repositories/auth_repository.dart';
 
 class AuthService {
@@ -7,7 +6,7 @@ class AuthService {
   AuthService({AuthRepository? repository})
       : _repository = repository ?? AuthRepository();
 
-  Future<Map<String, String?>?> autenticar({
+  Future<Map<String, dynamic>?> autenticar({
     required String login,
     required String senha,
   }) async {
@@ -51,13 +50,26 @@ class AuthService {
     }
 
     final usuario = autorizados.single;
+    final id = usuario['id']!;
 
-    // A senha nunca deve ser devolvida à aplicação Flutter.
+    // Busca detalhes completos (unidade, turno, etc.)
+    final detalhes = await _repository.buscarDetalhesTerapeuta(id);
+    if (detalhes != null) {
+      return detalhes;
+    }
+
     return {
       'id': usuario['id'],
       'login': usuario['login'],
       'nome': usuario['nome'],
       'tipo': usuario['tipo'],
+      'unidade': 'Golden Square',
+      'inicioTurno': 10 * 60,
+      'fimTurno': 16 * 60,
     };
+  }
+
+  Future<Map<String, dynamic>?> buscarPorId(String id) async {
+    return _repository.buscarDetalhesTerapeuta(id);
   }
 }
