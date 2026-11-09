@@ -65,6 +65,34 @@ Future<void> main() async {
     }
   });
 
+  router.get('/terapeutas/<id>', (Request request, String id) async {
+    try {
+      final terapeuta = await authService.buscarPorId(id);
+
+      if (terapeuta == null) {
+        return Response.notFound(
+          jsonEncode({'success': false, 'message': 'Terapeuta não encontrado.'}),
+          headers: jsonHeaders,
+        );
+      }
+
+      return Response.ok(
+        jsonEncode({'success': true, 'terapeuta': terapeuta}),
+        headers: jsonHeaders,
+      );
+    } catch (e) {
+      print('Erro interno ao buscar terapeuta $id: $e');
+
+      return Response.internalServerError(
+        body: jsonEncode({
+          'success': false,
+          'message': 'Erro interno do servidor.',
+        }),
+        headers: jsonHeaders,
+      );
+    }
+  });
+
   router.post('/auth/login', (Request request) async {
     try {
       final body = jsonDecode(await request.readAsString());
