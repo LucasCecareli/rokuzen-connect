@@ -70,7 +70,13 @@ class Terapeuta {
   final int inicioTurno;
   final int fimTurno;
 
-  String get primeiroNome => nome.split(' ').first;
+  String get primeiroNome {
+    final partes = nome.split(' ').where((s) => s.isNotEmpty).toList();
+    if (partes.length > 1 && partes.first.toLowerCase() == 'terapeuta') {
+      return partes[1];
+    }
+    return partes.isNotEmpty ? partes.first : 'Terapeuta';
+  }
 
   /// Turno do dia: no domingo é sempre das 14h às 20h.
   (int inicio, int fim) turnoDe(DateTime dia) =>

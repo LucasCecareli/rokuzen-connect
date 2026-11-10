@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_colors.dart';
 import '../core/app_text.dart';
 import '../data/models/modelos.dart';
+import '../data/services/perfil_service.dart';
+import '../features/perfil/folha_perfil_terapeuta.dart';
 import 'decoracao.dart';
 import 'responsivo.dart';
 
@@ -208,102 +212,140 @@ class CabecalhoTela extends StatelessWidget {
   }
 }
 
-/// Avatar do terapeuta com o menu de perfil ("Sair").
+/// Avatar do terapeuta com abertura intuitiva de perfil ao tocar.
 class AvatarTerapeuta extends StatelessWidget {
-  const AvatarTerapeuta({super.key, this.terapeuta, required this.aoSair});
+  const AvatarTerapeuta({
+    super.key,
+    this.terapeuta,
+    required this.aoSair,
+    this.tamanho = 48,
+    this.abrirAoTocar = true,
+  });
 
   final Terapeuta? terapeuta;
   final VoidCallback aoSair;
+  final double tamanho;
+  final bool abrirAoTocar;
 
   @override
   Widget build(BuildContext context) {
-    final nome = terapeuta?.primeiroNome ?? '';
-    final inicial = nome.isEmpty ? '' : nome[0].toUpperCase();
-    return PopupMenuButton<int>(
-      tooltip: 'Abrir perfil',
-      offset: const Offset(0, 56),
-      color: AppColors.superficie,
-      surfaceTintColor: Colors.transparent,
-      elevation: 8,
-      shadowColor: AppColors.texto.withValues(alpha: 0.35),
-      constraints: const BoxConstraints(minWidth: 240, maxWidth: 240),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.borda),
-      ),
-      onSelected: (v) {
-        if (v == 1) aoSair();
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<int>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.divisor)),
-            ),
-            child: Row(
-              children: [
-                AvatarIniciais(
-                  iniciais: inicial,
-                  tamanho: 40,
-                  fundo: AppColors.texto,
-                  cor: Colors.white,
+    if (terapeuta != null) {
+      PerfilService.inicializar(terapeuta!.id);
+    }
+    final nome = terapeuta?.nome ?? '';
+    final inicial = nome.isEmpty ? 'T' : nome[0].toUpperCase();
+
+    Widget avatarWidget = ValueListenableBuilder<String?>(
+      valueListenable: PerfilService.fotoNotifier,
+      builder: (context, foto, _) {
+        if (foto != null && foto.isNotEmpty) {
+          if (foto.startsWith('data:image')) {
+            try {
+              final base64Part = foto.split(',').last;
+              final bytes = base64Decode(base64Part);
+              return ClipOval(
+                child: Image.memory(
+                  bytes,
+                  width: tamanho,
+                  height: tamanho,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _avatarCirculo(inicial),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(nome,
-                          style: AppText.s(15,
-                              peso: FontWeight.w700, altura: 20)),
-                      Text(
-                        'Terapeuta · ${terapeuta?.unidade ?? ''}',
-                        style: AppText.s(12,
-                            altura: 16, cor: AppColors.textoSuave),
-                      ),
-                    ],
+              );
+            } catch (_) {
+              return _avatarCirculo(inicial);
+            }
+          }
+
+          if (foto.startsWith('http://') || foto.startsWith('https://')) {
+            return ClipOval(
+              child: Image.network(
+                foto,
+                width: tamanho,
+                height: tamanho,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _avatarCirculo(inicial),
+              ),
+            );
+          }
+          final corPreset = switch (foto) {
+            'preset_lotus' => const Color(0xFF6B8E23),
+            'preset_folha' => const Color(0xFF2E8B57),
+            'preset_zen' => const Color(0xFF4A7043),
+            'preset_sol' => const Color(0xFFD97706),
+            'preset_massagem' => const Color(0xFFBE185D),
+            'preset_estrela' => const Color(0xFF4338CA),
+            _ => AppColors.texto,
+          };
+
+          final iconePreset = switch (foto) {
+            'preset_lotus' => Icons.spa_rounded,
+            'preset_folha' => Icons.eco_rounded,
+            'preset_zen' => Icons.self_improvement_rounded,
+            'preset_sol' => Icons.wb_sunny_rounded,
+            'preset_massagem' => Icons.favorite_rounded,
+            'preset_estrela' => Icons.auto_awesome_rounded,
+            _ => null,
+          };
+
+          if (iconePreset != null) {
+            return Container(
+              width: tamanho,
+              height: tamanho,
+              decoration: BoxDecoration(
+                color: corPreset,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: corPreset.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+              child: Icon(iconePreset, color: Colors.white, size: tamanho * 0.5),
+            );
+          }
+        }
+        return _avatarCirculo(inicial);
+      },
+    );
+
+    if (!abrirAoTocar || terapeuta == null) {
+      return avatarWidget;
+    }
+
+    return Tooltip(
+      message: 'Abrir perfil',
+      child: InkWell(
+        onTap: () => abrirPerfilTerapeuta(context, terapeuta: terapeuta!, aoSair: aoSair),
+        customBorder: const CircleBorder(),
+        child: avatarWidget,
+      ),
+    );
+  }
+
+  Widget _avatarCirculo(String inicial) {
+    return Container(
+      width: tamanho,
+      height: tamanho,
+      decoration: BoxDecoration(
+        color: AppColors.texto,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.texto.withValues(alpha: 0.18),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
-        PopupMenuItem<int>(
-          value: 1,
-          height: 48,
-          child: Row(
-            children: [
-              const Icon(Icons.logout_rounded,
-                  size: 22, color: AppColors.textoSuave),
-              const SizedBox(width: 12),
-              Text('Sair', style: AppText.s(15, peso: FontWeight.w600)),
-            ],
-          ),
-        ),
-      ],
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: AppColors.texto,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.texto.withValues(alpha: 0.18),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          inicial,
-          style: AppText.s(16, peso: FontWeight.w700, cor: Colors.white),
-        ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        inicial,
+        style: AppText.s(tamanho * 0.4, peso: FontWeight.w700, cor: Colors.white),
       ),
     );
   }
@@ -1030,25 +1072,51 @@ class BarraLateral extends StatelessWidget {
               const Spacer(),
               const Divider(height: 1, color: AppColors.divisor),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  AvatarTerapeuta(terapeuta: terapeuta, aoSair: aoSair),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(terapeuta.primeiroNome,
-                            style: AppText.s(15,
-                                peso: FontWeight.w700, altura: 20)),
-                        Text('Terapeuta · ${terapeuta.unidade}',
-                            overflow: TextOverflow.ellipsis,
-                            style: AppText.s(12,
-                                altura: 16, cor: AppColors.textoSuave)),
-                      ],
-                    ),
+              InkWell(
+                onTap: () => abrirPerfilTerapeuta(
+                  context,
+                  terapeuta: terapeuta,
+                  aoSair: aoSair,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                  child: Row(
+                    children: [
+                      AvatarTerapeuta(
+                        terapeuta: terapeuta,
+                        aoSair: aoSair,
+                        abrirAoTocar: false,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              terapeuta.nome,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.s(15,
+                                  peso: FontWeight.w700, altura: 20),
+                            ),
+                            Text(
+                              'Terapeuta · ${terapeuta.unidade}',
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.s(12,
+                                  altura: 16, cor: AppColors.textoSuave),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textoSuave,
+                        size: 20,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),

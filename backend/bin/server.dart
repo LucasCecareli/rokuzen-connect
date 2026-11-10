@@ -1,10 +1,11 @@
 import 'dart:convert';
 
+import 'package:backend/repositories/atendimento_repository.dart';
+import 'package:backend/repositories/paciente_repository.dart';
 import 'package:backend/services/auth_service.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
-import 'package:backend/repositories/paciente_repository.dart';
 
 Middleware corsMiddleware() {
   return (Handler innerHandler) {
@@ -30,6 +31,7 @@ Future<void> main() async {
   final router = Router();
   final authService = AuthService();
   final pacienteRepository = PacienteRepository();
+  final atendimentoRepository = AtendimentoRepository();
 
   Map<String, String> jsonHeaders = {
     'Content-Type': 'application/json; charset=utf-8',
@@ -82,6 +84,99 @@ Future<void> main() async {
       );
     } catch (e) {
       print('Erro interno ao buscar terapeuta $id: $e');
+
+      return Response.internalServerError(
+        body: jsonEncode({
+          'success': false,
+          'message': 'Erro interno do servidor.',
+        }),
+        headers: jsonHeaders,
+      );
+    }
+  });
+
+  router.get('/atendimentos/proximo', (Request request) async {
+    try {
+      final terapeutaId = request.url.queryParameters['terapeuta'];
+      final apartir = request.url.queryParameters['apartir'] ??
+          DateTime.now().toIso8601String();
+
+      if (terapeutaId == null || terapeutaId.trim().isEmpty) {
+        return Response(
+          400,
+          body: jsonEncode({
+            'success': false,
+            'message': 'Informe o parâmetro terapeuta.',
+          }),
+          headers: jsonHeaders,
+        );
+      }
+
+      final atendimento = await atendimentoRepository.buscarProximoAtendimento(
+        terapeutaId: terapeutaId,
+        aPartirDe: apartir,
+      );
+
+      return Response.ok(
+        jsonEncode({'success': true, 'atendimento': atendimento}),
+        headers: jsonHeaders,
+      );
+    } catch (e) {
+      print('Erro interno ao buscar próximo atendimento: $e');
+
+      return Response.internalServerError(
+        body: jsonEncode({
+          'success': false,
+          'message': 'Erro interno do servidor.',
+        }),
+        headers: jsonHeaders,
+      );
+    }
+  });
+
+  router.get('/atendimentos', (Request request) async {
+    try {
+      final terapeutaId = request.url.queryParameters['terapeuta'];
+      final pacienteId = request.url.queryParameters['paciente'];
+      final inicio = request.url.queryParameters['inicio'];
+      final fim = request.url.queryParameters['fim'];
+
+      final atendimentos = await atendimentoRepository.listarAtendimentos(
+        terapeutaId: terapeutaId,
+        pacienteId: pacienteId,
+        inicio: inicio,
+        fim: fim,
+      );
+
+      return Response.ok(
+        jsonEncode({'success': true, 'atendimentos': atendimentos}),
+        headers: jsonHeaders,
+      );
+    } catch (e) {
+      print('Erro interno ao listar atendimentos: $e');
+
+      return Response.internalServerError(
+        body: jsonEncode({
+          'success': false,
+          'message': 'Erro interno do servidor.',
+        }),
+        headers: jsonHeaders,
+      );
+    }
+  });
+
+  router.get('/pacientes/<id>/atendimentos', (Request request, String id) async {
+    try {
+      final atendimentos = await atendimentoRepository.listarAtendimentos(
+        pacienteId: id,
+      );
+
+      return Response.ok(
+        jsonEncode({'success': true, 'atendimentos': atendimentos}),
+        headers: jsonHeaders,
+      );
+    } catch (e) {
+      print('Erro interno ao buscar atendimentos do paciente $id: $e');
 
       return Response.internalServerError(
         body: jsonEncode({
