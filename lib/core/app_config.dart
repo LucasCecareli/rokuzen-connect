@@ -7,7 +7,7 @@ abstract final class AppConfig {
   ///    para bater com os dados de exemplo do protótipo.
   ///
   /// Quando os dados vierem do banco da Rokuzen, troque para `false`.
-  static const bool modoDemonstracao = true;
+  static const bool modoDemonstracao = false;
 
   /// Data e hora usadas como "agora" no modo de demonstração.
   static final DateTime agoraDemonstracao = DateTime(2026, 10, 2, 13, 35);

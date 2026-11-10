@@ -45,6 +45,10 @@ class AuthRepository {
         SELECT 1
         FROM usrXund
         WHERE usr_ukey = :usuarioId
+        UNION
+        SELECT 1
+        FROM events
+        WHERE title = :usuarioId AND und_ukey IS NOT NULL
         LIMIT 1
         ''',
         {'usuarioId': usuarioId},
@@ -90,7 +94,7 @@ class AuthRepository {
       // Tenta buscar o turno na escala oficial de events
       final eventRes = await connection.execute(
         '''
-        SELECT start, end
+        SELECT start, end, und_ukey
         FROM events
         WHERE title = :usuarioId
         ORDER BY start DESC
@@ -98,6 +102,11 @@ class AuthRepository {
         ''',
         {'usuarioId': usuarioId},
       );
+
+      var unidadeId = row.colByName('und_ukey');
+      if (unidadeId == null && eventRes.rows.isNotEmpty) {
+        unidadeId = eventRes.rows.first.colByName('und_ukey');
+      }
 
       if (eventRes.rows.isNotEmpty) {
         final startStr = eventRes.rows.first.colByName('start');
@@ -119,7 +128,7 @@ class AuthRepository {
         'login': row.colByName('usr_001_c'),
         'nome': row.colByName('usr_002_c'),
         'tipo': row.colByName('usr_010_c'),
-        'unidadeId': row.colByName('und_ukey'),
+        'unidadeId': unidadeId ?? '1',
         'unidade': unidade,
         'inicioTurno': inicioTurno,
         'fimTurno': fimTurno,

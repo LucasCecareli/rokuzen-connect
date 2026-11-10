@@ -46,6 +46,8 @@ class _TelaAgendaState extends State<TelaAgenda> {
   @override
   void initState() {
     super.initState();
+    _inicioSemana = inicioDaSemana(agora());
+    _selecionado = soData(agora());
     repositorio.addListener(_recarregar);
     widget.sinalHoje.addListener(_irParaHoje);
     _carregar();

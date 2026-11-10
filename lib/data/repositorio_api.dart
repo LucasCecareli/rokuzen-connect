@@ -1,6 +1,7 @@
 import 'models/modelos.dart';
 import 'repositorio.dart';
 import 'repositorio_demonstracao.dart';
+import 'services/atendimento_api_service.dart';
 import 'services/paciente_api_service.dart';
 
 class RepositorioApi extends RokuzenRepository {
@@ -11,8 +12,10 @@ class RepositorioApi extends RokuzenRepository {
 
   final RepositorioDemonstracao _demo = RepositorioDemonstracao();
   final PacienteApiService _pacientesApi = PacienteApiService();
+  final AtendimentoApiService _atendimentosApi = AtendimentoApiService();
 
   Terapeuta? _terapeutaLogado;
+  final Map<String, StatusAtendimento> _statusLocais = {};
 
   @override
   Terapeuta? get terapeutaAtual => _terapeutaLogado ?? _demo.terapeutaAtual;
@@ -90,24 +93,105 @@ class RepositorioApi extends RokuzenRepository {
   }
 
   @override
-  Future<List<Atendimento>> buscarAtendimentos(DateTime inicio, DateTime fim) =>
-      _demo.buscarAtendimentos(inicio, fim);
+  Future<List<Atendimento>> buscarAtendimentos(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
+    final terapeuta = _terapeutaLogado ?? _demo.terapeutaAtual;
+    if (terapeuta == null) {
+      return _demo.buscarAtendimentos(inicio, fim);
+    }
+
+    try {
+      final lista = await _atendimentosApi.buscarAtendimentos(
+        terapeutaId: terapeuta.id,
+        inicio: inicio,
+        fim: fim,
+      );
+
+      return [
+        for (final a in lista)
+          if (_statusLocais.containsKey(a.id))
+            a.comStatus(_statusLocais[a.id]!)
+          else
+            a,
+      ];
+    } catch (_) {
+      // Em caso de falha de conexão com a API, usa o fallback seguro
+      final demoLista = await _demo.buscarAtendimentos(inicio, fim);
+      return [
+        for (final a in demoLista)
+          if (_statusLocais.containsKey(a.id))
+            a.comStatus(_statusLocais[a.id]!)
+          else
+            a,
+      ];
+    }
+  }
 
   @override
-  Future<Atendimento?> buscarProximoAtendimento(DateTime aPartirDe) =>
-      _demo.buscarProximoAtendimento(aPartirDe);
+  Future<Atendimento?> buscarProximoAtendimento(DateTime aPartirDe) async {
+    final terapeuta = _terapeutaLogado ?? _demo.terapeutaAtual;
+    if (terapeuta == null) {
+      return _demo.buscarProximoAtendimento(aPartirDe);
+    }
+
+    try {
+      final proximo = await _atendimentosApi.buscarProximoAtendimento(
+        terapeutaId: terapeuta.id,
+        aPartirDe: aPartirDe,
+      );
+
+      if (proximo == null) return null;
+
+      if (_statusLocais.containsKey(proximo.id)) {
+        return proximo.comStatus(_statusLocais[proximo.id]!);
+      }
+      return proximo;
+    } catch (_) {
+      final proximoDemo = await _demo.buscarProximoAtendimento(aPartirDe);
+      if (proximoDemo != null && _statusLocais.containsKey(proximoDemo.id)) {
+        return proximoDemo.comStatus(_statusLocais[proximoDemo.id]!);
+      }
+      return proximoDemo;
+    }
+  }
 
   @override
-  Future<List<Atendimento>> buscarAtendimentosDoPaciente(String pacienteId) =>
-      _demo.buscarAtendimentosDoPaciente(pacienteId);
+  Future<List<Atendimento>> buscarAtendimentosDoPaciente(
+    String pacienteId,
+  ) async {
+    try {
+      final lista =
+          await _atendimentosApi.buscarAtendimentosDoPaciente(pacienteId);
+      if (lista.isNotEmpty) {
+        return [
+          for (final a in lista)
+            if (_statusLocais.containsKey(a.id))
+              a.comStatus(_statusLocais[a.id]!)
+            else
+              a,
+        ];
+      }
+      return _demo.buscarAtendimentosDoPaciente(pacienteId);
+    } catch (_) {
+      return _demo.buscarAtendimentosDoPaciente(pacienteId);
+    }
+  }
 
   @override
   Future<List<Disponibilidade>> buscarDisponibilidades() =>
       _demo.buscarDisponibilidades();
 
   @override
-  Future<void> alterarStatus(String atendimentoId, StatusAtendimento status) =>
-      _demo.alterarStatus(atendimentoId, status);
+  Future<void> alterarStatus(
+    String atendimentoId,
+    StatusAtendimento status,
+  ) async {
+    _statusLocais[atendimentoId] = status;
+    await _demo.alterarStatus(atendimentoId, status);
+    notifyListeners();
+  }
 
   @override
   Future<void> adicionarDisponibilidades(List<Disponibilidade> novas) =>
@@ -115,7 +199,7 @@ class RepositorioApi extends RokuzenRepository {
 
   @override
   Future<void> atualizarDisponibilidade(Disponibilidade disponibilidade) =>
-      _demo.atualizarDisponibilidade(disponibilidade);
+    _demo.atualizarDisponibilidade(disponibilidade);
 
   @override
   Future<void> removerDisponibilidade(int id) =>
