@@ -47,8 +47,10 @@ class _TelaInicioState extends State<TelaInicio> {
     repositorio.addListener(_carregar);
     _carregar();
     if (!AppConfig.modoDemonstracao) {
+      // A cada 30 s atualiza o "agora" e os atendimentos (pega mudanças
+      // feitas no banco, como um encaixe novo).
       _relogio = Timer.periodic(const Duration(seconds: 30), (_) {
-        if (mounted) setState(() {});
+        if (mounted) _carregar();
       });
     }
   }
@@ -76,15 +78,28 @@ class _TelaInicioState extends State<TelaInicio> {
   }
 
   Future<void> _iniciar(Atendimento a) async {
-    final inicio = a.inicio;
-    if (_agora.isBefore(inicio)) _agoraAjustado = inicio;
-    // Só em memória: o status não é gravado no banco (ver repositorio.dart).
-    await repositorio.alterarStatus(a.id, StatusAtendimento.andamento);
+    // No modo de demonstração o relógio é fixo: avança até o atendimento.
+    if (AppConfig.modoDemonstracao && _agora.isBefore(a.inicio)) {
+      _agoraAjustado = a.inicio;
+    }
+    await _gravarStatus(a, StatusAtendimento.andamento);
   }
 
   Future<void> _finalizar(Atendimento a) async {
     if (AppConfig.modoDemonstracao) _agoraAjustado = a.fim;
-    await repositorio.alterarStatus(a.id, StatusAtendimento.concluido);
+    await _gravarStatus(a, StatusAtendimento.concluido);
+  }
+
+  /// Grava o status no banco; se falhar, avisa e mantém como estava.
+  Future<void> _gravarStatus(Atendimento a, StatusAtendimento status) async {
+    try {
+      await repositorio.alterarStatus(a.id, status);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Não foi possível atualizar o atendimento. $e'),
+      ));
+    }
   }
 
   @override
@@ -507,7 +522,8 @@ class _CardEmAndamento extends StatelessWidget {
                                   cor: Colors.white)),
                           const SizedBox(height: 4),
                           Text(
-                            '${a.servico.nome}${a.temAdicional ? ' + Auriculoterapia' : ''} · ${a.sala}',
+                            '${a.servico.nome}${a.temAdicional ? ' + Auriculoterapia' : ''}'
+                            '${a.sala.isEmpty ? '' : ' · ${a.sala}'}',
                             style: AppText.s(13,
                                 altura: 18, cor: AppColors.textoSobreEscuro),
                           ),

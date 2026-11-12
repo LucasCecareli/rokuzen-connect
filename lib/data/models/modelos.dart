@@ -59,6 +59,7 @@ class Terapeuta {
     required this.unidade,
     required this.inicioTurno,
     required this.fimTurno,
+    this.escala = const {},
   });
 
   final String id;
@@ -78,13 +79,55 @@ class Terapeuta {
     return partes.isNotEmpty ? partes.first : 'Terapeuta';
   }
 
-  /// Turno do dia: no domingo é sempre das 14h às 20h.
-  (int inicio, int fim) turnoDe(DateTime dia) =>
-      dia.weekday == DateTime.sunday ? (14 * 60, 20 * 60) : (inicioTurno, fimTurno);
+  /// Expediente de cada dia vindo da escala da Rokuzen (chave: o dia, sem
+  /// horário). Dias fora da escala usam o turno padrão.
+  final Map<DateTime, (int, int)> escala;
+
+  Terapeuta comEscala(Map<DateTime, (int, int)> escala) => Terapeuta(
+        id: id,
+        nome: nome,
+        unidade: unidade,
+        inicioTurno: inicioTurno,
+        fimTurno: fimTurno,
+        escala: escala,
+      );
+
+  /// Turno do dia: o da escala, se houver; senão o padrão (no domingo,
+  /// das 14h às 20h).
+  (int inicio, int fim) turnoDe(DateTime dia) {
+    final daEscala = escala[DateTime(dia.year, dia.month, dia.day)];
+    if (daEscala != null) return daEscala;
+    return dia.weekday == DateTime.sunday
+        ? (14 * 60, 20 * 60)
+        : (inicioTurno, fimTurno);
+  }
 
   String turnoTexto(DateTime dia) {
     final (ini, fim) = turnoDe(dia);
     return '${horaDeMinutos(ini)} – ${horaDeMinutos(fim)}';
+  }
+
+  /// Expediente da semana agrupando dias seguidos com o mesmo horário.
+  /// Ex.: "Seg–sáb 09:00 – 18:00 · Dom 14:00 – 20:00".
+  String resumoSemana(DateTime inicioSemana) {
+    const nomes = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    final grupos = <(int primeiro, int ultimo, String turno)>[];
+    for (var i = 0; i < 7; i++) {
+      final d = DateTime(
+          inicioSemana.year, inicioSemana.month, inicioSemana.day + i);
+      final t = turnoTexto(d);
+      if (grupos.isNotEmpty && grupos.last.$3 == t) {
+        grupos[grupos.length - 1] = (grupos.last.$1, i, t);
+      } else {
+        grupos.add((i, i, t));
+      }
+    }
+    return grupos.map((g) {
+      final dias = g.$1 == g.$2
+          ? nomes[g.$1]
+          : '${nomes[g.$1]}–${nomes[g.$2].toLowerCase()}';
+      return '$dias ${g.$3}';
+    }).join(' · ');
   }
 }
 
@@ -171,8 +214,8 @@ class Atendimento {
   String get horarioTexto =>
       '${hora(inicio)} – ${hora(fim)} · $duracaoTotal min';
 
-  /// "Mooca Plaza · Sala 3"
-  String get localTexto => '$unidade · $sala';
+  /// "Mooca Plaza · Sala 3" (ou só a unidade, quando não há sala).
+  String get localTexto => sala.isEmpty ? unidade : '$unidade · $sala';
 
   Atendimento comStatus(StatusAtendimento novo) => Atendimento(
         id: id,

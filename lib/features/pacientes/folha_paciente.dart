@@ -43,6 +43,7 @@ class _FolhaPacienteState extends State<_FolhaPaciente> {
   String? _erroNome;
   String? _erroTelefone;
   String? _erroEmail;
+  String? _erroSalvar;
   bool _salvando = false;
   bool _seletorAberto = false;
 
@@ -112,27 +113,38 @@ class _FolhaPacienteState extends State<_FolhaPaciente> {
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() => _salvando = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
+    setState(() {
+      _salvando = true;
+      _erroSalvar = null;
+    });
     final Paciente salvo;
-    if (_novo) {
-      salvo = await repositorio.cadastrarPaciente(
-        nome: nome,
-        telefone: _telefone.text,
-        email: email.isEmpty ? null : email,
-        nascimento: _nascimento,
-      );
-    } else {
-      salvo = await repositorio.editarPaciente(
-        Paciente(
-          id: widget.paciente!.id,
+    try {
+      if (_novo) {
+        salvo = await repositorio.cadastrarPaciente(
           nome: nome,
           telefone: _telefone.text,
           email: email.isEmpty ? null : email,
           nascimento: _nascimento,
-          novo: widget.paciente!.novo,
-        ),
-      );
+        );
+      } else {
+        salvo = await repositorio.editarPaciente(
+          Paciente(
+            id: widget.paciente!.id,
+            nome: nome,
+            telefone: _telefone.text,
+            email: email.isEmpty ? null : email,
+            nascimento: _nascimento,
+            novo: widget.paciente!.novo,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _salvando = false;
+        _erroSalvar = 'Não foi possível salvar. $e';
+      });
+      return;
     }
     if (mounted) Navigator.of(context).pop(salvo);
   }
@@ -214,6 +226,10 @@ class _FolhaPacienteState extends State<_FolhaPaciente> {
             rotuloAcessivel: 'Data de nascimento',
             aoTocar: _escolherNascimento,
           ),
+          if (_erroSalvar != null) ...[
+            const SizedBox(height: 16),
+            Semantics(liveRegion: true, child: ErroCampo(_erroSalvar!)),
+          ],
           const SizedBox(height: 24),
           Row(
             children: [
