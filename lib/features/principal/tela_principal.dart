@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/app_text.dart';
 import '../../data/models/modelos.dart';
 import '../../data/repositorio.dart';
 import '../../widgets/componentes.dart';
@@ -36,13 +37,23 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
   void initState() {
     super.initState();
     _terapeuta = repositorio.terapeutaAtual;
+    repositorio.addListener(_atualizarTerapeuta);
+    _atualizarTerapeuta();
+  }
+
+  /// Busca a terapeuta com a escala de expediente (e de novo após
+  /// "Tentar novamente", caso a escala não tenha carregado).
+  void _atualizarTerapeuta() {
     repositorio.buscarTerapeuta().then((t) {
-      if (mounted) setState(() => _terapeuta = t);
-    });
+      if (mounted && !identical(t, _terapeuta)) {
+        setState(() => _terapeuta = t);
+      }
+    }, onError: (_) {});
   }
 
   @override
   void dispose() {
+    repositorio.removeListener(_atualizarTerapeuta);
     _sinalAgendaHoje.dispose();
     super.dispose();
   }
@@ -134,12 +145,67 @@ class _TelaPrincipalState extends State<TelaPrincipal> {
                 terapeuta: t,
                 aoSair: widget.aoSair,
               ),
-            Expanded(key: const ValueKey('conteudo'), child: conteudo),
+            Expanded(
+              key: const ValueKey('conteudo'),
+              child: Column(
+                children: [
+                  ValueListenableBuilder<String?>(
+                    valueListenable: repositorio.erroConexao,
+                    builder: (context, erro, _) => erro == null
+                        ? const SizedBox.shrink()
+                        : _AvisoConexao(
+                            mensagem: erro,
+                            aoTentarDeNovo: repositorio.recarregar,
+                          ),
+                  ),
+                  Expanded(child: conteudo),
+                ],
+              ),
+            ),
           ],
         ),
         bottomNavigationBar: largo
             ? null
             : BarraNavegacao(atual: _aba, aoSelecionar: _selecionarAba),
+      ),
+    );
+  }
+}
+
+/// Faixa exibida quando o servidor não responde.
+class _AvisoConexao extends StatelessWidget {
+  const _AvisoConexao({required this.mensagem, required this.aoTentarDeNovo});
+
+  final String mensagem;
+  final VoidCallback aoTentarDeNovo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.erroFundo,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.cloud_off_rounded,
+                  color: AppColors.erro, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  mensagem,
+                  style: AppText.s(14, altura: 20, cor: AppColors.erroTexto),
+                ),
+              ),
+              BotaoTexto(
+                rotulo: 'Tentar novamente',
+                cor: AppColors.erroTexto,
+                aoPressionar: aoTentarDeNovo,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

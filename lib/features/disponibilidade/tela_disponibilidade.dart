@@ -75,7 +75,14 @@ class _TelaDisponibilidadeState extends State<TelaDisponibilidade> {
       aoAcionar: () {
         _timerAviso?.cancel();
         setState(() => _aviso = null);
-        repositorio.restaurarDisponibilidade(d);
+        repositorio.restaurarDisponibilidade(d).catchError((Object e) {
+          if (mounted) {
+            _mostrarAviso(Aviso(
+              texto: 'Não foi possível desfazer. $e',
+              icone: Icons.error_outline_rounded,
+            ));
+          }
+        });
       },
     ));
   }
@@ -102,8 +109,18 @@ class _TelaDisponibilidadeState extends State<TelaDisponibilidade> {
   }
 
   Future<void> _remover(Disponibilidade d) async {
-    await repositorio.removerDisponibilidade(d.id);
-    _avisoRemocao(d);
+    try {
+      await repositorio.removerDisponibilidade(d.id);
+    } catch (e) {
+      if (mounted) {
+        _mostrarAviso(Aviso(
+          texto: 'Não foi possível remover. $e',
+          icone: Icons.error_outline_rounded,
+        ));
+      }
+      return;
+    }
+    if (mounted) _avisoRemocao(d);
   }
 
   List<Disponibilidade> _doDia(DateTime dia) =>

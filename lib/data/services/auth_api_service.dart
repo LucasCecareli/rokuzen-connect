@@ -7,7 +7,11 @@ import 'package:http/http.dart' as http;
 class AuthApiService {
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://127.0.0.1:8081';
+      // No navegador, o backend fica no mesmo computador que serve o app.
+      // Assim o teste pelo Safari do iPhone (http://<IPv4>:8080) também
+      // encontra o backend em http://<IPv4>:8081.
+      final host = Uri.base.host.isEmpty ? '127.0.0.1' : Uri.base.host;
+      return 'http://$host:8081';
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {

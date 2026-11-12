@@ -47,6 +47,26 @@ void main() {
       expect(mariana.turnoTexto(DateTime(2026, 10, 2)), '10:00 – 16:00');
     });
 
+    test('escala do banco substitui o turno padrão do dia', () {
+      final comEscala = mariana.comEscala({
+        DateTime(2026, 10, 2): (13 * 60, 19 * 60),
+      });
+      expect(comEscala.turnoTexto(DateTime(2026, 10, 2, 15)), '13:00 – 19:00');
+      expect(comEscala.turnoTexto(DateTime(2026, 10, 1)), '10:00 – 16:00');
+    });
+
+    test('resumo da semana agrupa dias com o mesmo expediente', () {
+      expect(mariana.resumoSemana(DateTime(2026, 9, 28)),
+          'Seg–sáb 10:00 – 16:00 · Dom 14:00 – 20:00');
+      final comEscala = mariana.comEscala({
+        DateTime(2026, 9, 30): (16 * 60, 22 * 60),
+      });
+      expect(
+          comEscala.resumoSemana(DateTime(2026, 9, 28)),
+          'Seg–ter 10:00 – 16:00 · Qua 16:00 – 22:00 · '
+          'Qui–sáb 10:00 – 16:00 · Dom 14:00 – 20:00');
+    });
+
     test('adicional de Auriculoterapia entra na duração', () {
       final a = Atendimento(
         id: '1',

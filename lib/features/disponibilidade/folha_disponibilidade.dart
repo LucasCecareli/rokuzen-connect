@@ -212,31 +212,44 @@ class _FolhaDisponibilidadeState extends State<_FolhaDisponibilidade> {
       _erro = null;
       _salvando = true;
     });
-    await Future.delayed(const Duration(milliseconds: 1200));
     final datas = _ocorrencias();
     final ini = _inicio!, fim = _fim!;
     String mensagem;
-    if (_editando) {
-      await repositorio.atualizarDisponibilidade(
-        widget.existente!.copyWith(data: _data, inicio: ini, fim: fim),
-      );
-      final extras = datas.where((d) => !mesmoDia(d, _data)).toList();
-      if (extras.isNotEmpty) {
+    try {
+      if (_editando) {
+        await repositorio.atualizarDisponibilidade(
+          widget.existente!.copyWith(data: _data, inicio: ini, fim: fim),
+        );
+        final extras = datas.where((d) => !mesmoDia(d, _data)).toList();
+        if (extras.isNotEmpty) {
+          await repositorio.adicionarDisponibilidades([
+            for (final d in extras)
+              Disponibilidade(
+                  id: repositorio.novoId(), data: d, inicio: ini, fim: fim),
+          ]);
+        }
+        mensagem = 'Horário atualizado';
+      } else {
         await repositorio.adicionarDisponibilidades([
-          for (final d in extras)
-            Disponibilidade(id: repositorio.novoId(), data: d, inicio: ini, fim: fim),
+          for (final d in datas)
+            Disponibilidade(
+                id: repositorio.novoId(),
+                data: d,
+                inicio: ini,
+                fim: fim,
+                nova: true),
         ]);
+        mensagem = datas.length > 1
+            ? '${datas.length} horários adicionados'
+            : 'Disponibilidade adicionada';
       }
-      mensagem = 'Horário atualizado';
-    } else {
-      await repositorio.adicionarDisponibilidades([
-        for (final d in datas)
-          Disponibilidade(
-              id: repositorio.novoId(), data: d, inicio: ini, fim: fim, nova: true),
-      ]);
-      mensagem = datas.length > 1
-          ? '${datas.length} horários adicionados'
-          : 'Disponibilidade adicionada';
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _salvando = false;
+        _erro = 'Não foi possível salvar. $e';
+      });
+      return;
     }
     if (mounted) {
       Navigator.of(context)
@@ -247,7 +260,20 @@ class _FolhaDisponibilidadeState extends State<_FolhaDisponibilidade> {
   Future<void> _excluir() async {
     final d = widget.existente;
     if (d == null || _salvando) return;
-    await repositorio.removerDisponibilidade(d.id);
+    setState(() {
+      _erro = null;
+      _salvando = true;
+    });
+    try {
+      await repositorio.removerDisponibilidade(d.id);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _salvando = false;
+        _erro = 'Não foi possível remover. $e';
+      });
+      return;
+    }
     if (mounted) {
       Navigator.of(context).pop(ResultadoDisponibilidade(
         mensagem: 'Horário removido',

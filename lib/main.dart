@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/app_theme.dart';
+import 'data/repositorio.dart';
 import 'features/login/tela_login.dart';
 import 'features/principal/tela_principal.dart';
 
@@ -41,7 +42,10 @@ class _RokuzenConnectAppState extends State<RokuzenConnectApp> {
         child: _logado
             ? TelaPrincipal(
                 key: const ValueKey('app'),
-                aoSair: () => setState(() => _logado = false),
+                aoSair: () {
+                  repositorio.sair();
+                  setState(() => _logado = false);
+                },
               )
             : TelaLogin(
                 key: const ValueKey('login'),

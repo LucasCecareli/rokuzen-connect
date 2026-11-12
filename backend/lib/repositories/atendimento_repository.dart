@@ -55,7 +55,7 @@ class AtendimentoRepository {
           a.atd_001_c AS duracao,
           a.atd_002_c AS inicio,
           a.atd_003_c AS fim,
-          a.atd_005_c AS sala_numero,
+          st.status AS status_salvo,
           c.cli_004_c AS cliente_nome,
           und.und_001_c AS unidade_nome,
           t.tpr_001_c AS servico_nome,
@@ -64,6 +64,7 @@ class AtendimentoRepository {
         LEFT JOIN cli c ON a.cli_ukey = c.cli_ukey
         LEFT JOIN und und ON a.und_ukey = und.und_ukey
         LEFT JOIN tpr t ON a.tpr_ukey = t.tpr_ukey
+        LEFT JOIN app_status_atendimento st ON st.atd_ukey = a.atd_ukey
         WHERE ${whereClauses.join(' AND ')}
         $ordenacao
       ''';
@@ -93,7 +94,7 @@ class AtendimentoRepository {
           a.atd_001_c AS duracao,
           a.atd_002_c AS inicio,
           a.atd_003_c AS fim,
-          a.atd_005_c AS sala_numero,
+          st.status AS status_salvo,
           c.cli_004_c AS cliente_nome,
           und.und_001_c AS unidade_nome,
           t.tpr_001_c AS servico_nome,
@@ -102,6 +103,7 @@ class AtendimentoRepository {
         LEFT JOIN cli c ON a.cli_ukey = c.cli_ukey
         LEFT JOIN und und ON a.und_ukey = und.und_ukey
         LEFT JOIN tpr t ON a.tpr_ukey = t.tpr_ukey
+        LEFT JOIN app_status_atendimento st ON st.atd_ukey = a.atd_ukey
         WHERE (
           a.usr_ukey = :terapeutaId
           OR a.usr_ukey = (SELECT usr_001_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
@@ -120,6 +122,129 @@ class AtendimentoRepository {
       if (result.rows.isEmpty) return null;
 
       return _mapearAtendimento(result.rows.first);
+    } finally {
+      await connection.close();
+    }
+  }
+
+  static const statusValidos = {
+    'confirmado',
+    'pendente',
+    'andamento',
+    'concluido',
+    'cancelado',
+    'faltou',
+  };
+
+  /// Grava o status de um atendimento da terapeuta (tabela própria do app,
+  /// app_status_atendimento). Devolve false se o atendimento não for dela.
+  Future<bool> salvarStatus({
+    required String atendimentoId,
+    required String terapeutaId,
+    required String status,
+  }) async {
+    final connection = await Database.connect();
+
+    try {
+      final dono = await connection.execute(
+        '''
+        SELECT a.atd_ukey
+        FROM atd a
+        WHERE a.atd_ukey = :atendimentoId
+          AND (
+            a.usr_ukey = :terapeutaId
+            OR a.usr_ukey = (SELECT usr_001_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
+            OR a.usr_ukey = (SELECT usr_ukey FROM usr WHERE usr_001_c = :terapeutaId LIMIT 1)
+          )
+        LIMIT 1
+        ''',
+        {'atendimentoId': atendimentoId, 'terapeutaId': terapeutaId},
+      );
+      if (dono.rows.isEmpty) return false;
+
+      await connection.execute(
+        '''
+        INSERT INTO app_status_atendimento (atd_ukey, usr_ukey, status)
+        VALUES (:atendimentoId, :terapeutaId, :status)
+        ON DUPLICATE KEY UPDATE
+          status = VALUES(status),
+          usr_ukey = VALUES(usr_ukey),
+          atualizado_em = CURRENT_TIMESTAMP
+        ''',
+        {
+          'atendimentoId': atendimentoId,
+          'terapeutaId': terapeutaId,
+          'status': status,
+        },
+      );
+      return true;
+    } finally {
+      await connection.close();
+    }
+  }
+
+  /// Expediente da terapeuta em cada dia entre [inicio] e [fim] (AAAA-MM-DD,
+  /// fim exclusivo), lido da escala oficial da Rokuzen (tabela events).
+  Future<List<Map<String, dynamic>>> buscarEscala({
+    required String terapeutaId,
+    required String inicio,
+    required String fim,
+  }) async {
+    final connection = await Database.connect();
+
+    try {
+      final result = await connection.execute(
+        '''
+        SELECT e.start AS inicio, e.end AS fim, und.und_001_c AS unidade_nome
+        FROM events e
+        LEFT JOIN und und ON e.und_ukey = und.und_ukey
+        WHERE e.title = :terapeutaId
+          AND e.start >= :inicio
+          AND e.start < :fim
+        ORDER BY e.start
+        ''',
+        {
+          'terapeutaId': terapeutaId.trim(),
+          'inicio': _formatarDataParaSql(inicio.trim()),
+          'fim': _formatarDataParaSql(fim.trim()),
+        },
+      );
+
+      // Um dia pode ter mais de um registro: usa o primeiro início e o
+      // último fim.
+      final porDia = <String, Map<String, dynamic>>{};
+      for (final row in result.rows) {
+        final ini = DateTime.tryParse(
+            (row.colByName('inicio') ?? '').replaceAll(' ', 'T'));
+        final fimEvt = DateTime.tryParse(
+            (row.colByName('fim') ?? '').replaceAll(' ', 'T'));
+        if (ini == null || fimEvt == null || !fimEvt.isAfter(ini)) continue;
+
+        final dia = ini.toIso8601String().substring(0, 10);
+        final iniMin = ini.hour * 60 + ini.minute;
+        // Expediente que vira a meia-noite termina às 24:00 do mesmo dia.
+        final fimMin = fimEvt.day != ini.day
+            ? 24 * 60
+            : fimEvt.hour * 60 + fimEvt.minute;
+
+        var unidade = _texto(row.colByName('unidade_nome'));
+        unidade = unidade?.replaceAll(' Shopping', '').trim();
+
+        final atual = porDia[dia];
+        if (atual == null) {
+          porDia[dia] = {
+            'data': dia,
+            'inicio': iniMin,
+            'fim': fimMin,
+            'unidade': unidade,
+          };
+        } else {
+          if (iniMin < (atual['inicio'] as int)) atual['inicio'] = iniMin;
+          if (fimMin > (atual['fim'] as int)) atual['fim'] = fimMin;
+          atual['unidade'] ??= unidade;
+        }
+      }
+      return porDia.values.toList();
     } finally {
       await connection.close();
     }
@@ -159,38 +284,8 @@ class AtendimentoRepository {
     var unidade = _texto(row.colByName('unidade_nome')) ?? 'Golden Square';
     unidade = unidade.replaceAll(' Shopping', '').trim();
 
-    final salaNum = _texto(row.colByName('sala_numero'));
-    String sala;
-    if (servico == 'Quick Massage') {
-      sala = (salaNum != null && salaNum.isNotEmpty) ? 'Cadeira $salaNum' : 'Cadeira 1';
-    } else {
-      sala = (salaNum != null && salaNum.isNotEmpty) ? 'Sala $salaNum' : 'Sala 1';
-    }
-
     final inicioStr = row.colByName('inicio');
     final fimStr = row.colByName('fim');
-
-    DateTime? inicioDate;
-    if (inicioStr != null) {
-      inicioDate = DateTime.tryParse(inicioStr.replaceAll(' ', 'T'));
-    }
-
-    DateTime? fimDate;
-    if (fimStr != null) {
-      fimDate = DateTime.tryParse(fimStr.replaceAll(' ', 'T'));
-    }
-
-    final agora = DateTime.now();
-    String status = 'confirmado';
-
-    if (fimDate != null && fimDate.isBefore(agora)) {
-      status = 'concluido';
-    } else if (inicioDate != null &&
-        inicioDate.isBefore(agora) &&
-        fimDate != null &&
-        fimDate.isAfter(agora)) {
-      status = 'andamento';
-    }
 
     return {
       'id': row.colByName('atd_ukey'),
@@ -202,8 +297,11 @@ class AtendimentoRepository {
       'adicionalAuriculo': adicionalAuriculo,
       'servico': servico,
       'unidade': unidade,
-      'sala': sala,
-      'status': status,
+      // O banco da Rokuzen não registra sala/cadeira.
+      'sala': null,
+      // Status gravado pelo app (iniciado, concluído...). Quando não há,
+      // o app deduz pelo horário.
+      'status': _texto(row.colByName('status_salvo')),
     };
   }
 

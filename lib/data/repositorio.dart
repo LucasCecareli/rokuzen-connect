@@ -10,18 +10,33 @@ import 'repositorio_api.dart';
 /// (ex.: `RepositorioApi`, que chama o backend em `backend/`) e trocá-la em
 /// [repositorio], lá embaixo. Nenhuma tela precisa mudar.
 ///
-/// LEITURA: os métodos `buscar...` só leem dados.
-///
-/// AÇÕES LOCAIS: os métodos de alteração (cadastrar paciente, mudar status,
-/// adicionar disponibilidade...) por enquanto alteram APENAS a memória do
-/// aparelho. Nada é enviado ao banco até o grupo definir com o professor onde
-/// esses dados devem ser gravados.
+/// No modo real ([RepositorioApi]) leitura e gravação vão para o backend,
+/// que fala com o banco do grupo. Se o servidor não responder, as leituras
+/// devolvem listas vazias e [erroConexao] recebe uma mensagem (a tela
+/// principal mostra um aviso com "Tentar novamente"). As gravações lançam
+/// exceção, para o formulário mostrar o erro.
 ///
 /// O repositório avisa as telas quando algo muda ([ChangeNotifier]), para que
 /// Início, Agenda e Pacientes fiquem sempre sincronizados.
 abstract class RokuzenRepository extends ChangeNotifier {
   Terapeuta? get terapeutaAtual;
   void definirTerapeutaLogado(Terapeuta terapeuta);
+
+  /// Mensagem de falha de conexão com o servidor (null quando está tudo ok).
+  /// Fica separada dos avisos do repositório para não recarregar as telas
+  /// em loop quando o servidor está fora.
+  final ValueNotifier<String?> erroConexao = ValueNotifier<String?>(null);
+
+  /// "Tentar novamente": limpa o erro e pede para as telas recarregarem.
+  void recarregar() {
+    erroConexao.value = null;
+    notifyListeners();
+  }
+
+  /// Esquece os dados da terapeuta ao sair da conta.
+  void sair() {
+    erroConexao.value = null;
+  }
 
   // ---------------------------------------------------------------- leitura
   Future<Terapeuta> buscarTerapeuta();
@@ -44,7 +59,7 @@ abstract class RokuzenRepository extends ChangeNotifier {
   /// Disponibilidades para atendimentos particulares.
   Future<List<Disponibilidade>> buscarDisponibilidades();
 
-  // ------------------------------------------- ações locais (só em memória)
+  // -------------------------------------------------------------- gravação
   Future<void> alterarStatus(String atendimentoId, StatusAtendimento status);
 
   Future<Paciente> cadastrarPaciente({
@@ -69,8 +84,6 @@ abstract class RokuzenRepository extends ChangeNotifier {
   int novoId();
 }
 
-/// Origem dos dados usada pelo app inteiro.
-///
-/// Hoje: dados de exemplo iguais aos do protótipo.
-/// Depois: troque por uma implementação que lê o backend da Rokuzen.
+/// Origem dos dados usada pelo app inteiro: o backend do grupo.
+/// (Para apresentar sem servidor, troque por `RepositorioDemonstracao()`.)
 final RokuzenRepository repositorio = RepositorioApi();

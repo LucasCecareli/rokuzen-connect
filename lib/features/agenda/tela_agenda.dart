@@ -352,7 +352,6 @@ class _TelaAgendaState extends State<TelaAgenda> {
       _ => 'HÁ ${-diferenca} SEMANAS',
     };
     final t = widget.terapeuta;
-    final turnoSemana = '${horaDeMinutos(t.inicioTurno)} – ${horaDeMinutos(t.fimTurno)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -372,7 +371,7 @@ class _TelaAgendaState extends State<TelaAgenda> {
           ),
           LinhaInfo(
             icone: Icons.schedule_rounded,
-            texto: 'Seg–sáb $turnoSemana · Dom 14:00 – 20:00',
+            texto: t.resumoSemana(inicio),
           ),
           LinhaInfo(icone: Icons.location_on_outlined, texto: t.unidade),
         ]),
