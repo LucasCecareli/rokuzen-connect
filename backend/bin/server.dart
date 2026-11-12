@@ -114,6 +114,36 @@ Future<void> main() async {
     });
   });
 
+  /// "Esqueci minha senha", passo 1: confere se o e-mail existe.
+  /// POST /auth/verificar-email  {"email": "..."}
+  router.post('/auth/verificar-email', (Request request) {
+    return _protegido('verificar e-mail', () async {
+      final email = _texto((await _corpo(request))?['email']);
+      if (email == null) return _erro(400, 'Informe o e-mail.');
+      final existe = await authService.emailCadastrado(email);
+      return _ok({'encontrado': existe});
+    });
+  });
+
+  /// "Esqueci minha senha", passo 2: grava a nova senha.
+  /// POST /auth/redefinir-senha  {"email": "...", "novaSenha": "..."}
+  router.post('/auth/redefinir-senha', (Request request) {
+    return _protegido('redefinir senha', () async {
+      final body = await _corpo(request);
+      final email = _texto(body?['email']);
+      final novaSenha = body?['novaSenha'];
+      if (email == null ||
+          novaSenha is! String ||
+          novaSenha.length < 4 ||
+          novaSenha.length > 50) {
+        return _erro(400, 'Informe o e-mail e uma senha de 4 a 50 caracteres.');
+      }
+      final ok = await authService.redefinirSenha(email, novaSenha);
+      if (!ok) return _erro(404, 'E-mail não encontrado.');
+      return _ok({'message': 'Senha alterada.'});
+    });
+  });
+
   // -------------------------------------------------------- terapeutas
 
   router.get('/terapeutas/<id>', (Request request, String id) {
@@ -121,6 +151,27 @@ Future<void> main() async {
       final terapeuta = await authService.buscarPorId(id);
       if (terapeuta == null) return _erro(404, 'Terapeuta não encontrado.');
       return _ok({'terapeuta': terapeuta});
+    });
+  });
+
+  /// Foto de perfil (tabela app_perfil).
+  router.get('/terapeutas/<id>/foto', (Request request, String id) {
+    return _protegido('buscar foto de $id', () async {
+      return _ok({'foto': await authService.buscarFoto(id)});
+    });
+  });
+
+  /// PUT /terapeutas/<id>/foto  {"foto": "data:image/jpeg;base64,..." | "preset_lotus" | null}
+  router.put('/terapeutas/<id>/foto', (Request request, String id) {
+    return _protegido('salvar foto de $id', () async {
+      final body = await _corpo(request);
+      if (body == null) return _erro(400, 'Dados inválidos.');
+      final foto = body['foto'];
+      if (foto != null && (foto is! String || foto.length > 3000000)) {
+        return _erro(400, 'Foto inválida ou grande demais.');
+      }
+      await authService.salvarFoto(id, _texto(foto));
+      return _ok({'message': 'Foto salva.'});
     });
   });
 
@@ -199,6 +250,7 @@ Future<void> main() async {
         atendimentoId: id,
         terapeutaId: terapeutaId,
         status: status,
+        iniciadoEm: _texto(body?['iniciadoEm']),
       );
       if (!salvo) return _erro(404, 'Atendimento não encontrado.');
       return _ok({'status': status});
@@ -207,12 +259,17 @@ Future<void> main() async {
 
   // --------------------------------------------------------- pacientes
 
+  /// Pacientes da terapeuta.
   /// GET /pacientes?terapeuta=<id>&agora=<data e hora do app>
   router.get('/pacientes', (Request request) {
     return _protegido('listar pacientes', () async {
       final q = request.url.queryParameters;
+      final terapeutaId = _texto(q['terapeuta']);
+      if (terapeutaId == null) {
+        return _erro(400, 'Informe o parâmetro terapeuta.');
+      }
       final pacientes = await pacienteRepository.listarPacientes(
-        terapeutaId: q['terapeuta'],
+        terapeutaId: terapeutaId,
         agora: q['agora'],
       );
       return _ok({'pacientes': pacientes});
@@ -221,10 +278,15 @@ Future<void> main() async {
 
   router.post('/pacientes', (Request request) {
     return _protegido('cadastrar paciente', () async {
-      final dados = DadosPaciente.deJson(await _corpo(request));
-      if (dados == null) return _erro(400, 'Dados do paciente inválidos.');
+      final body = await _corpo(request);
+      final terapeutaId = _texto(body?['terapeuta']);
+      final dados = DadosPaciente.deJson(body);
+      if (dados == null || terapeutaId == null) {
+        return _erro(400, 'Dados do paciente inválidos.');
+      }
 
-      final paciente = await pacienteRepository.cadastrar(dados);
+      final paciente =
+          await pacienteRepository.cadastrar(dados, terapeutaId: terapeutaId);
       return _ok({'paciente': paciente});
     });
   });

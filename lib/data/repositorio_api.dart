@@ -142,7 +142,7 @@ class RepositorioApi extends RokuzenRepository {
         terapeutaId: _terapeutaId,
         aPartirDe: aPartirDe,
       );
-      return [if (p != null) p];
+      return [?p];
     }, const <Atendimento>[]);
     return proximos.isEmpty ? null : proximos.first;
   }
@@ -233,13 +233,16 @@ class RepositorioApi extends RokuzenRepository {
     String? email,
     DateTime? nascimento,
   }) async {
-    final salvo = await _pacientesApi.cadastrar(Paciente(
-      id: '',
-      nome: nome,
-      telefone: telefone,
-      email: email,
-      nascimento: nascimento,
-    ));
+    final salvo = await _pacientesApi.cadastrar(
+      Paciente(
+        id: '',
+        nome: nome,
+        telefone: telefone,
+        email: email,
+        nascimento: nascimento,
+      ),
+      terapeutaId: _terapeutaId,
+    );
     _pacientes?.insert(0, (salvo, null));
     notifyListeners();
     return salvo;

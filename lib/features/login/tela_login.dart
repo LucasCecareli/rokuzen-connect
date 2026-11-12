@@ -10,6 +10,7 @@ import '../../widgets/campos.dart';
 import '../../widgets/componentes.dart';
 import '../../widgets/decoracao.dart';
 import '../../widgets/responsivo.dart';
+import 'folha_esqueci_senha.dart';
 
 enum _Estado { ocioso, carregando, sucesso, erro }
 
@@ -166,14 +167,16 @@ class _TelaLoginState extends State<TelaLogin> {
     }
   }
 
-  void _esqueciSenha() {
+  Future<void> _esqueciSenha() async {
     if (_ocupado) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    final alterou = await abrirEsqueciSenha(context);
+    if (!alterou || !mounted) return;
+    _senha.clear();
+    _limparErros();
+    messenger.showSnackBar(
       const SnackBar(
-        content: Text(
-          'A recuperação de senha ainda não está disponível. '
-          'Entre em contato com o administrador.',
-        ),
+        content: Text('Senha alterada. Entre com a nova senha.'),
       ),
     );
   }

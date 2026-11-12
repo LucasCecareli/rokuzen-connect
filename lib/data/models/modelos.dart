@@ -179,6 +179,7 @@ class Atendimento {
     required this.unidade,
     required this.sala,
     required this.status,
+    this.iniciadoEm,
   });
 
   final String id;
@@ -195,6 +196,10 @@ class Atendimento {
   final String unidade;
   final String sala;
   final StatusAtendimento status;
+
+  /// Hora real em que a terapeuta tocou em "Iniciar atendimento" (pode ser
+  /// diferente do horário marcado). Usada na barra de progresso.
+  final DateTime? iniciadoEm;
 
   bool get temAdicional => adicionalAuriculo > 0;
   int get duracaoTotal => duracao + adicionalAuriculo;
@@ -228,6 +233,7 @@ class Atendimento {
         unidade: unidade,
         sala: sala,
         status: novo,
+        iniciadoEm: iniciadoEm,
       );
 }
 

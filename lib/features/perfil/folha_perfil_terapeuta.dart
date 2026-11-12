@@ -11,7 +11,6 @@ import '../../core/formatadores.dart';
 import '../../data/models/modelos.dart';
 import '../../data/services/perfil_service.dart';
 import '../../widgets/componentes.dart';
-import '../../widgets/decoracao.dart';
 import '../../widgets/folhas.dart';
 
 /// Abre a folha com as informações completas do perfil do terapeuta.
@@ -56,9 +55,26 @@ class _FolhaPerfilTerapeutaState extends State<_FolhaPerfilTerapeuta> {
     (id: 'preset_estrela', nome: 'Brilho', icone: Icons.auto_awesome_rounded, cor: Color(0xFF4338CA)),
   ];
 
-  void _selecionarAvatar(String id) {
-    PerfilService.salvarFoto(id);
-    setState(() => _mostrandoSeletor = false);
+  Future<void> _selecionarAvatar(String id) async {
+    if (await _salvarFoto(id) && mounted) {
+      setState(() => _mostrandoSeletor = false);
+    }
+  }
+
+  /// Grava a foto no banco; se falhar, avisa e devolve false.
+  Future<bool> _salvarFoto(String? foto) async {
+    try {
+      await PerfilService.salvarFoto(foto);
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Não foi possível salvar a foto. $e'),
+          backgroundColor: AppColors.erroTexto,
+        ));
+      }
+      return false;
+    }
   }
 
   bool get _ehDesktop =>
@@ -81,10 +97,11 @@ class _FolhaPerfilTerapeutaState extends State<_FolhaPerfilTerapeuta> {
       if (image != null) {
         final bytes = await image.readAsBytes();
         final base64String = base64Encode(bytes);
-        await PerfilService.salvarFoto('data:image/jpeg;base64,$base64String');
+        final salvou =
+            await _salvarFoto('data:image/jpeg;base64,$base64String');
         if (mounted) {
           setState(() {
-            _mostrandoSeletor = false;
+            if (salvou) _mostrandoSeletor = false;
             _carregandoFoto = false;
           });
         }
@@ -114,9 +131,10 @@ class _FolhaPerfilTerapeutaState extends State<_FolhaPerfilTerapeuta> {
     }
   }
 
-  void _removerFoto() {
-    PerfilService.salvarFoto(null);
-    setState(() => _mostrandoSeletor = false);
+  Future<void> _removerFoto() async {
+    if (await _salvarFoto(null) && mounted) {
+      setState(() => _mostrandoSeletor = false);
+    }
   }
 
   @override
@@ -451,7 +469,7 @@ class _WidgetFotoGrande extends StatelessWidget {
               width: 80,
               height: 80,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _avatarIniciais(80, inicial),
+              errorBuilder: (_, _, _) => _avatarIniciais(80, inicial),
             ),
           );
         } catch (_) {
@@ -466,7 +484,7 @@ class _WidgetFotoGrande extends StatelessWidget {
             width: 80,
             height: 80,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _avatarIniciais(80, inicial),
+            errorBuilder: (_, _, _) => _avatarIniciais(80, inicial),
           ),
         );
       }

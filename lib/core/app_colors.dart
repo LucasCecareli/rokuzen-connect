@@ -40,6 +40,10 @@ abstract final class AppColors {
   static const erroFundo = Color(0xFFFBEAE7);
   static const erroTexto = Color(0xFF8C1D18);
 
+  // "Cliente ausente": vermelho mais suave que o de "Sair da conta".
+  static const ausente = Color(0xFFD9686A);
+  static const ausenteFundo = Color(0xFFFCEFEF);
+
   // "Em andamento"
   static const azul = Color(0xFF174E6E);
   static const azulSuave = Color(0xFFE3EEF5);

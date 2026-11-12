@@ -50,7 +50,13 @@ class AtendimentoApiService {
   }) async {
     await ApiCliente.put(
       '/atendimentos/${Uri.encodeComponent(atendimentoId)}/status',
-      {'terapeuta': terapeutaId, 'status': status.name},
+      {
+        'terapeuta': terapeutaId,
+        'status': status.name,
+        // Hora real do início, no relógio do aparelho (barra de progresso).
+        if (status == StatusAtendimento.andamento)
+          'iniciadoEm': agora().toIso8601String(),
+      },
     );
   }
 
@@ -117,6 +123,9 @@ class AtendimentoApiService {
       unidade: json['unidade']?.toString() ?? 'Rokuzen',
       sala: json['sala']?.toString() ?? '',
       status: _paraStatus(json['status']?.toString(), fim),
+      iniciadoEm: json['iniciadoEm'] == null
+          ? null
+          : DateTime.tryParse('${json['iniciadoEm']}'.replaceAll(' ', 'T')),
     );
   }
 
