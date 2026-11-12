@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'core/app_theme.dart';
 import 'data/repositorio.dart';
+import 'data/services/perfil_service.dart';
 import 'features/login/tela_login.dart';
 import 'features/principal/tela_principal.dart';
 
@@ -44,6 +45,7 @@ class _RokuzenConnectAppState extends State<RokuzenConnectApp> {
                 key: const ValueKey('app'),
                 aoSair: () {
                   repositorio.sair();
+                  PerfilService.limpar();
                   setState(() => _logado = false);
                 },
               )

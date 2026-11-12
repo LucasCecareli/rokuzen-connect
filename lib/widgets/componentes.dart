@@ -249,7 +249,7 @@ class AvatarTerapeuta extends StatelessWidget {
                   width: tamanho,
                   height: tamanho,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _avatarCirculo(inicial),
+                  errorBuilder: (_, _, _) => _avatarCirculo(inicial),
                 ),
               );
             } catch (_) {
@@ -264,7 +264,7 @@ class AvatarTerapeuta extends StatelessWidget {
                 width: tamanho,
                 height: tamanho,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _avatarCirculo(inicial),
+                errorBuilder: (_, _, _) => _avatarCirculo(inicial),
               ),
             );
           }

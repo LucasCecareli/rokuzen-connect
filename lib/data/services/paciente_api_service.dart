@@ -27,8 +27,12 @@ class PacienteApiService {
     ];
   }
 
-  Future<Paciente> cadastrar(Paciente p) async {
-    final dados = await ApiCliente.post('/pacientes', _paraJson(p));
+  /// Cadastra o paciente ligado à terapeuta (aparece na lista dela).
+  Future<Paciente> cadastrar(Paciente p, {required String terapeutaId}) async {
+    final dados = await ApiCliente.post('/pacientes', {
+      'terapeuta': terapeutaId,
+      ..._paraJson(p),
+    });
     final salvo = dados['paciente'];
     if (salvo is! Map<String, dynamic>) {
       throw const ApiException('Resposta inválida do servidor.');

@@ -72,4 +72,27 @@ class AuthService {
   Future<Map<String, dynamic>?> buscarPorId(String id) async {
     return _repository.buscarDetalhesTerapeuta(id);
   }
+
+  /// true se existe exatamente um terapeuta com esse e-mail.
+  Future<bool> emailCadastrado(String email) async {
+    final ids = await _repository.buscarTerapeutasPorEmail(email.trim());
+    return ids.length == 1;
+  }
+
+  /// Redefine a senha do terapeuta dono do e-mail. Devolve false se o e-mail
+  /// não existir (ou se estiver em mais de uma conta).
+  ///
+  /// Mecanismo simplificado para a apresentação do projeto: não envia
+  /// código de confirmação por e-mail.
+  Future<bool> redefinirSenha(String email, String novaSenha) async {
+    final ids = await _repository.buscarTerapeutasPorEmail(email.trim());
+    if (ids.length != 1) return false;
+    await _repository.alterarSenha(ids.single, novaSenha);
+    return true;
+  }
+
+  Future<String?> buscarFoto(String id) => _repository.buscarFoto(id);
+
+  Future<void> salvarFoto(String id, String? foto) =>
+      _repository.salvarFoto(id, foto);
 }

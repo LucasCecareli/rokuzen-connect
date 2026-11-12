@@ -3,57 +3,59 @@ import 'dart:convert';
 import 'package:backend/config/database.dart';
 
 class PacienteRepository {
-  /// Lista os clientes. Quando [terapeutaId] é informado, cada paciente vem
-  /// com a data da última sessão com essa terapeuta (antes de [agora]).
+  /// Pacientes da terapeuta: quem já teve (ou tem marcado) atendimento com
+  /// ela, mais quem ela cadastrou pelo app. Cada um vem com a data da última
+  /// sessão com ela antes de [agora].
   Future<List<Map<String, String?>>> listarPacientes({
-    String? terapeutaId,
+    required String terapeutaId,
     String? agora,
   }) async {
     final connection = await Database.connect();
 
     try {
-      final temTerapeuta = terapeutaId != null && terapeutaId.trim().isNotEmpty;
-
-      final result = temTerapeuta
-          ? await connection.execute(
-              '''
-              SELECT
-                c.cli_ukey,
-                c.cli_004_c,
-                c.cli_012_c,
-                c.cli_001_c,
-                c.cli_017_c,
-                u.ultima AS ultima_sessao
-              FROM cli AS c
-              LEFT JOIN (
-                SELECT a.cli_ukey, MAX(a.atd_002_c) AS ultima
-                FROM atd a
-                WHERE (
-                  a.usr_ukey = :terapeutaId
-                  OR a.usr_ukey = (SELECT usr_001_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
-                  OR a.usr_ukey = (SELECT usr_ukey FROM usr WHERE usr_001_c = :terapeutaId LIMIT 1)
-                )
-                AND a.atd_002_c < :agora
-                GROUP BY a.cli_ukey
-              ) u ON u.cli_ukey = c.cli_ukey
-              ORDER BY TRIM(c.cli_004_c)
-              ''',
-              {
-                'terapeutaId': terapeutaId.trim(),
-                'agora': _formatarDataHora(agora),
-              },
-            )
-          : await connection.execute('''
-              SELECT
-                c.cli_ukey,
-                c.cli_004_c,
-                c.cli_012_c,
-                c.cli_001_c,
-                c.cli_017_c,
-                NULL AS ultima_sessao
-              FROM cli AS c
-              ORDER BY TRIM(c.cli_004_c)
-            ''');
+      final result = await connection.execute(
+        '''
+        SELECT
+          c.cli_ukey,
+          c.cli_004_c,
+          c.cli_012_c,
+          c.cli_001_c,
+          c.cli_017_c,
+          u.ultima AS ultima_sessao
+        FROM cli AS c
+        LEFT JOIN (
+          SELECT a.cli_ukey, MAX(a.atd_002_c) AS ultima
+          FROM atd a
+          WHERE (
+            a.usr_ukey = :terapeutaId
+            OR a.usr_ukey = (SELECT usr_001_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
+            OR a.usr_ukey = (SELECT usr_ukey FROM usr WHERE usr_001_c = :terapeutaId LIMIT 1)
+          )
+          AND a.atd_002_c < :agora
+          GROUP BY a.cli_ukey
+        ) u ON u.cli_ukey = c.cli_ukey
+        WHERE c.cli_ukey IN (
+            SELECT a2.cli_ukey
+            FROM atd a2
+            WHERE a2.cli_ukey IS NOT NULL
+              AND (
+                a2.usr_ukey = :terapeutaId
+                OR a2.usr_ukey = (SELECT usr_001_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
+                OR a2.usr_ukey = (SELECT usr_ukey FROM usr WHERE usr_001_c = :terapeutaId LIMIT 1)
+              )
+          )
+          OR c.cli_ukey IN (
+            SELECT pt.cli_ukey
+            FROM app_paciente_terapeuta pt
+            WHERE pt.usr_ukey = :terapeutaId
+          )
+        ORDER BY TRIM(c.cli_004_c)
+        ''',
+        {
+          'terapeutaId': terapeutaId.trim(),
+          'agora': _formatarDataHora(agora),
+        },
+      );
 
       return result.rows.map(_mapear).toList();
     } finally {
@@ -61,8 +63,12 @@ class PacienteRepository {
     }
   }
 
-  /// Cadastra um cliente novo e devolve o registro salvo.
-  Future<Map<String, String?>> cadastrar(DadosPaciente dados) async {
+  /// Cadastra um cliente novo, ligado à terapeuta que cadastrou, e devolve
+  /// o registro salvo.
+  Future<Map<String, String?>> cadastrar(
+    DadosPaciente dados, {
+    required String terapeutaId,
+  }) async {
     final connection = await Database.connect();
     try {
       // A tabela cli não tem auto incremento: o id é gerado aqui.
@@ -79,6 +85,15 @@ class PacienteRepository {
           'email': dados.email,
           'nascimento': dados.nascimentoSql,
         },
+      );
+      // Liga o paciente à terapeuta (aparece na lista dela mesmo antes do
+      // primeiro atendimento).
+      await connection.execute(
+        '''
+        INSERT INTO app_paciente_terapeuta (cli_ukey, usr_ukey)
+        VALUES (:id, :terapeutaId)
+        ''',
+        {'id': id, 'terapeutaId': terapeutaId},
       );
       return {
         'id': id,

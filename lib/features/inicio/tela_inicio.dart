@@ -47,10 +47,16 @@ class _TelaInicioState extends State<TelaInicio> {
     repositorio.addListener(_carregar);
     _carregar();
     if (!AppConfig.modoDemonstracao) {
-      // A cada 30 s atualiza o "agora" e os atendimentos (pega mudanças
-      // feitas no banco, como um encaixe novo).
-      _relogio = Timer.periodic(const Duration(seconds: 30), (_) {
-        if (mounted) _carregar();
+      // A cada 10 s atualiza o "agora" (barra de progresso e contagens);
+      // a cada 30 s busca de novo os atendimentos (pega mudanças feitas no
+      // banco, como um encaixe novo).
+      _relogio = Timer.periodic(const Duration(seconds: 10), (t) {
+        if (!mounted) return;
+        if (t.tick % 3 == 0) {
+          _carregar();
+        } else {
+          setState(() {});
+        }
       });
     }
   }
@@ -420,13 +426,19 @@ class _CardEmAndamento extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = atendimento;
-    final total = a.fim.difference(a.inicio).inMinutes;
-    final passados = agora.difference(a.inicio).inMinutes;
+    // A barra conta a partir de quando a terapeuta realmente iniciou (que
+    // pode ser antes ou depois do horário marcado) e dura o tempo da sessão.
+    final inicioReal = a.iniciadoEm ?? a.inicio;
+    final total = a.duracaoTotal * 60;
+    final passados = agora.difference(inicioReal).inSeconds;
     final progresso =
         total <= 0 ? 0.0 : (passados / total).clamp(0.0, 1.0).toDouble();
-    final restam = a.fim.difference(agora).inMinutes;
-    final textoRestante =
-        passados <= 0 ? 'Iniciado agora' : 'Restam $restam min';
+    final restam = ((total - passados) / 60).ceil();
+    final textoRestante = passados < 60
+        ? 'Iniciado agora'
+        : restam > 0
+            ? 'Restam $restam min'
+            : 'Tempo encerrado';
 
     return Container(
       decoration: BoxDecoration(

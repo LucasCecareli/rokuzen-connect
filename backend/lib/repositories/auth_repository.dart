@@ -137,4 +137,78 @@ class AuthRepository {
       await connection.close();
     }
   }
+
+  /// Terapeutas com o e-mail informado (usr_019_c).
+  Future<List<String>> buscarTerapeutasPorEmail(String email) async {
+    final connection = await Database.connect();
+
+    try {
+      final result = await connection.execute(
+        '''
+        SELECT u.usr_ukey
+        FROM usr AS u
+        WHERE LOWER(TRIM(u.usr_019_c)) = LOWER(TRIM(:email))
+          AND u.usr_010_c = '3'
+        ''',
+        {'email': email},
+      );
+      return [
+        for (final row in result.rows)
+          if (row.colByName('usr_ukey') != null) row.colByName('usr_ukey')!,
+      ];
+    } finally {
+      await connection.close();
+    }
+  }
+
+  /// Troca a senha (usr_003_c) do terapeuta.
+  Future<void> alterarSenha(String usuarioId, String novaSenha) async {
+    final connection = await Database.connect();
+
+    try {
+      await connection.execute(
+        'UPDATE usr SET usr_003_c = :senha WHERE usr_ukey = :usuarioId',
+        {'senha': novaSenha, 'usuarioId': usuarioId},
+      );
+    } finally {
+      await connection.close();
+    }
+  }
+
+  /// Foto de perfil salva pelo app (tabela app_perfil).
+  Future<String?> buscarFoto(String usuarioId) async {
+    final connection = await Database.connect();
+
+    try {
+      final result = await connection.execute(
+        'SELECT foto FROM app_perfil WHERE usr_ukey = :usuarioId LIMIT 1',
+        {'usuarioId': usuarioId},
+      );
+      if (result.rows.isEmpty) return null;
+      final foto = result.rows.first.colByName('foto');
+      return foto == null || foto.isEmpty ? null : foto;
+    } finally {
+      await connection.close();
+    }
+  }
+
+  /// Salva (ou remove, com [foto] nula) a foto de perfil.
+  Future<void> salvarFoto(String usuarioId, String? foto) async {
+    final connection = await Database.connect();
+
+    try {
+      await connection.execute(
+        '''
+        INSERT INTO app_perfil (usr_ukey, foto)
+        VALUES (:usuarioId, :foto)
+        ON DUPLICATE KEY UPDATE
+          foto = VALUES(foto),
+          atualizado_em = CURRENT_TIMESTAMP
+        ''',
+        {'usuarioId': usuarioId, 'foto': foto},
+      );
+    } finally {
+      await connection.close();
+    }
+  }
 }

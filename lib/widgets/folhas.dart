@@ -5,6 +5,7 @@ import '../core/app_config.dart';
 import '../core/app_text.dart';
 import '../core/formatadores.dart';
 import '../data/models/modelos.dart';
+import '../data/repositorio.dart';
 import 'componentes.dart';
 import 'decoracao.dart';
 import 'responsivo.dart';
@@ -214,6 +215,10 @@ class _DetalhesAtendimento extends StatelessWidget {
             linhas[i],
           ],
           const SizedBox(height: 24),
+          if (!a.status.inativo) ...[
+            _BotaoClienteAusente(aoPressionar: () => _confirmarAusencia(context)),
+            const SizedBox(height: 12),
+          ],
           BotaoSecundario(
             rotulo: 'Fechar',
             aoPressionar: () => Navigator.of(context).pop(),
@@ -221,6 +226,23 @@ class _DetalhesAtendimento extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Abre a confirmação. Se a terapeuta confirmar, o atendimento é gravado
+  /// como "Faltou" e a folha de detalhes fecha. "Voltar" só fecha o pop-up.
+  Future<void> _confirmarAusencia(BuildContext context) async {
+    final mensageiro = ScaffoldMessenger.of(context);
+    final navegador = Navigator.of(context);
+    final confirmado = await showDialog<bool>(
+      context: context,
+      barrierColor: AppColors.veu,
+      builder: (_) => _DialogoClienteAusente(atendimento: a),
+    );
+    if (confirmado != true) return;
+    navegador.pop();
+    mensageiro.showSnackBar(SnackBar(
+      content: Text('${a.pacienteNome}: agendamento baixado como ausente.'),
+    ));
   }
 
   static final _estilo = AppText.s(15, altura: 20);
@@ -243,6 +265,135 @@ class _DetalhesAtendimento extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Botão "Cliente ausente", no estilo do "Sair da conta" (contorno e texto
+/// em vermelho), com um vermelho mais suave.
+class _BotaoClienteAusente extends StatelessWidget {
+  const _BotaoClienteAusente({required this.aoPressionar});
+  final VoidCallback aoPressionar;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: aoPressionar,
+      icon: const Icon(Icons.person_off_outlined, color: AppColors.ausente),
+      label: Text(
+        'Cliente ausente',
+        style: AppText.s(15, peso: FontWeight.w600, cor: AppColors.ausente),
+      ),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(56),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        side: BorderSide(color: AppColors.ausente.withValues(alpha: 0.45)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+}
+
+/// Pop-up de confirmação do "Cliente ausente".
+class _DialogoClienteAusente extends StatefulWidget {
+  const _DialogoClienteAusente({required this.atendimento});
+  final Atendimento atendimento;
+
+  @override
+  State<_DialogoClienteAusente> createState() => _DialogoClienteAusenteState();
+}
+
+class _DialogoClienteAusenteState extends State<_DialogoClienteAusente> {
+  bool _salvando = false;
+  String? _erro;
+
+  Future<void> _confirmar() async {
+    if (_salvando) return;
+    setState(() {
+      _salvando = true;
+      _erro = null;
+    });
+    try {
+      await repositorio.alterarStatus(
+          widget.atendimento.id, StatusAtendimento.faltou);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _salvando = false;
+        _erro = 'Não foi possível dar baixa. $e';
+      });
+      return;
+    }
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.superficie,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    color: AppColors.ausenteFundo,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.person_off_outlined,
+                      color: AppColors.ausente, size: 28),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Cliente ausente',
+                textAlign: TextAlign.center,
+                style: AppText.s(20, peso: FontWeight.w700, altura: 28),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Cliente não compareceu a sessão? Se sim, confirme no botão '
+                'abaixo para dar baixa no agendamento.',
+                textAlign: TextAlign.center,
+                style: AppText.s(15, altura: 22, cor: AppColors.textoSuave),
+              ),
+              if (_erro != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _erro!,
+                  textAlign: TextAlign.center,
+                  style: AppText.s(13, altura: 18, cor: AppColors.erroTexto),
+                ),
+              ],
+              const SizedBox(height: 24),
+              BotaoPrimario(
+                rotulo: _salvando ? 'Dando baixa…' : 'Sim, cliente ausente',
+                carregando: _salvando,
+                fundo: AppColors.ausente,
+                cor: Colors.white,
+                sombra: false,
+                aoPressionar: _confirmar,
+              ),
+              const SizedBox(height: 12),
+              BotaoSecundario(
+                rotulo: 'Voltar',
+                aoPressionar:
+                    _salvando ? null : () => Navigator.of(context).pop(false),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

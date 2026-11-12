@@ -56,6 +56,7 @@ class AtendimentoRepository {
           a.atd_002_c AS inicio,
           a.atd_003_c AS fim,
           st.status AS status_salvo,
+          st.iniciado_em AS iniciado_em,
           c.cli_004_c AS cliente_nome,
           und.und_001_c AS unidade_nome,
           t.tpr_001_c AS servico_nome,
@@ -95,6 +96,7 @@ class AtendimentoRepository {
           a.atd_002_c AS inicio,
           a.atd_003_c AS fim,
           st.status AS status_salvo,
+          st.iniciado_em AS iniciado_em,
           c.cli_004_c AS cliente_nome,
           und.und_001_c AS unidade_nome,
           t.tpr_001_c AS servico_nome,
@@ -142,6 +144,7 @@ class AtendimentoRepository {
     required String atendimentoId,
     required String terapeutaId,
     required String status,
+    String? iniciadoEm,
   }) async {
     final connection = await Database.connect();
 
@@ -162,21 +165,43 @@ class AtendimentoRepository {
       );
       if (dono.rows.isEmpty) return false;
 
-      await connection.execute(
-        '''
-        INSERT INTO app_status_atendimento (atd_ukey, usr_ukey, status)
-        VALUES (:atendimentoId, :terapeutaId, :status)
-        ON DUPLICATE KEY UPDATE
-          status = VALUES(status),
-          usr_ukey = VALUES(usr_ukey),
-          atualizado_em = CURRENT_TIMESTAMP
-        ''',
-        {
-          'atendimentoId': atendimentoId,
-          'terapeutaId': terapeutaId,
-          'status': status,
-        },
-      );
+      if (status == 'andamento') {
+        await connection.execute(
+          '''
+          INSERT INTO app_status_atendimento
+            (atd_ukey, usr_ukey, status, iniciado_em)
+          VALUES (:atendimentoId, :terapeutaId, :status, :iniciadoEm)
+          ON DUPLICATE KEY UPDATE
+            status = VALUES(status),
+            usr_ukey = VALUES(usr_ukey),
+            iniciado_em = VALUES(iniciado_em),
+            atualizado_em = CURRENT_TIMESTAMP
+          ''',
+          {
+            'atendimentoId': atendimentoId,
+            'terapeutaId': terapeutaId,
+            'status': status,
+            'iniciadoEm': _formatarDataParaSql(
+                iniciadoEm ?? DateTime.now().toIso8601String()),
+          },
+        );
+      } else {
+        await connection.execute(
+          '''
+          INSERT INTO app_status_atendimento (atd_ukey, usr_ukey, status)
+          VALUES (:atendimentoId, :terapeutaId, :status)
+          ON DUPLICATE KEY UPDATE
+            status = VALUES(status),
+            usr_ukey = VALUES(usr_ukey),
+            atualizado_em = CURRENT_TIMESTAMP
+          ''',
+          {
+            'atendimentoId': atendimentoId,
+            'terapeutaId': terapeutaId,
+            'status': status,
+          },
+        );
+      }
       return true;
     } finally {
       await connection.close();
@@ -302,6 +327,8 @@ class AtendimentoRepository {
       // Status gravado pelo app (iniciado, concluído...). Quando não há,
       // o app deduz pelo horário.
       'status': _texto(row.colByName('status_salvo')),
+      // Hora real em que a terapeuta iniciou (barra de progresso).
+      'iniciadoEm': _texto(row.colByName('iniciado_em')),
     };
   }
 
