@@ -51,7 +51,31 @@ abstract final class Migracoes {
       KEY idx_app_pac_terapeuta (usr_ukey)
     )
     ''',
+    '''
+    CREATE TABLE IF NOT EXISTS app_escala (
+      usr_ukey VARCHAR(20) NOT NULL,
+      dias VARCHAR(20) NOT NULL,
+      inicio SMALLINT NOT NULL,
+      fim SMALLINT NOT NULL,
+      PRIMARY KEY (usr_ukey)
+    )
+    ''',
+    '''
+    CREATE TABLE IF NOT EXISTS app_admin (
+      usr_ukey VARCHAR(20) NOT NULL,
+      PRIMARY KEY (usr_ukey)
+    )
+    ''',
   ];
+
+  /// Usuário administrador usado nos testes e na apresentação.
+  static const _admin = (
+    id: 'ADMROKUZEN',
+    login: 'admrokuzen',
+    senha: 'adm123',
+    nome: 'Administrador Rokuzen',
+    email: 'admrokuzen@adm.com',
+  );
 
   /// Colunas acrescentadas depois que as tabelas já existiam no banco do
   /// grupo: (tabela, coluna, definição).
@@ -85,6 +109,36 @@ abstract final class Migracoes {
           );
         }
       }
+
+      // Cria o administrador (uma vez só). Tipo 'A' para não aparecer
+      // como terapeuta (tipo '3').
+      final admin = await connection.execute(
+        'SELECT usr_ukey FROM usr WHERE usr_001_c = :login LIMIT 1',
+        {'login': _admin.login},
+      );
+      var adminId = admin.rows.isEmpty
+          ? null
+          : admin.rows.first.colByName('usr_ukey');
+      if (adminId == null) {
+        await connection.execute(
+          '''
+          INSERT INTO usr (usr_ukey, usr_001_c, usr_002_c, usr_003_c, usr_010_c, usr_019_c)
+          VALUES (:id, :login, :nome, :senha, 'A', :email)
+          ''',
+          {
+            'id': _admin.id,
+            'login': _admin.login,
+            'nome': _admin.nome,
+            'senha': _admin.senha,
+            'email': _admin.email,
+          },
+        );
+        adminId = _admin.id;
+      }
+      await connection.execute(
+        'INSERT IGNORE INTO app_admin (usr_ukey) VALUES (:id)',
+        {'id': adminId},
+      );
     } finally {
       await connection.close();
     }

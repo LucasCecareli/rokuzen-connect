@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:backend/config/database.dart';
+import 'package:backend/repositories/admin_repository.dart';
 
 class AtendimentoRepository {
   Future<List<Map<String, dynamic>>> listarAtendimentos({
@@ -53,6 +54,7 @@ class AtendimentoRepository {
           a.tpr_ukey,
           a.usr_ukey,
           a.atd_001_c AS duracao,
+          a.atd_022_c AS obs,
           a.atd_002_c AS inicio,
           a.atd_003_c AS fim,
           st.status AS status_salvo,
@@ -93,6 +95,7 @@ class AtendimentoRepository {
           a.tpr_ukey,
           a.usr_ukey,
           a.atd_001_c AS duracao,
+          a.atd_022_c AS obs,
           a.atd_002_c AS inicio,
           a.atd_003_c AS fim,
           st.status AS status_salvo,
@@ -223,7 +226,12 @@ class AtendimentoRepository {
         SELECT e.start AS inicio, e.end AS fim, und.und_001_c AS unidade_nome
         FROM events e
         LEFT JOIN und und ON e.und_ukey = und.und_ukey
-        WHERE e.title = :terapeutaId
+        WHERE (
+            e.title = :terapeutaId
+            OR e.title = (SELECT usr_001_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
+            OR e.title = (SELECT usr_038_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
+            OR e.title = (SELECT usr_002_c FROM usr WHERE usr_ukey = :terapeutaId LIMIT 1)
+          )
           AND e.start >= :inicio
           AND e.start < :fim
         ORDER BY e.start
@@ -269,6 +277,34 @@ class AtendimentoRepository {
           atual['unidade'] ??= unidade;
         }
       }
+      // Dias sem escala lançada: usa a escala do cadastro do terapeuta
+      // (definida pelo administrador), se houver.
+      final cadastro = await connection.execute(
+        'SELECT dias, inicio, fim FROM app_escala WHERE usr_ukey = :id LIMIT 1',
+        {'id': terapeutaId.trim()},
+      );
+      if (cadastro.rows.isNotEmpty) {
+        final r = cadastro.rows.first;
+        final escala = EscalaTerapeuta.doBanco(
+            r.colByName('dias'), r.colByName('inicio'), r.colByName('fim'));
+        final de = DateTime.tryParse(inicio.trim());
+        final ate = DateTime.tryParse(fim.trim());
+        if (escala != null && de != null && ate != null) {
+          for (var d = DateTime(de.year, de.month, de.day);
+              d.isBefore(ate);
+              d = DateTime(d.year, d.month, d.day + 1)) {
+            final chave = d.toIso8601String().substring(0, 10);
+            final turno = escala.turnoDe(d);
+            if (porDia.containsKey(chave) || turno == null) continue;
+            porDia[chave] = {
+              'data': chave,
+              'inicio': turno.$1,
+              'fim': turno.$2,
+              'unidade': null,
+            };
+          }
+        }
+      }
       return porDia.values.toList();
     } finally {
       await connection.close();
@@ -284,7 +320,10 @@ class AtendimentoRepository {
     int duracao = int.tryParse(row.colByName('duracao') ?? '') ?? 30;
     int adicionalAuriculo = 0;
 
-    final temAuriculo = nomeLower.contains('auriculo') ||
+    // Combo de Auriculoterapia marcado pelo administrador (campo Obs).
+    final obsLower = (_texto(row.colByName('obs')) ?? '').toLowerCase();
+    final temAuriculo = obsLower.contains('auricul') ||
+        nomeLower.contains('auriculo') ||
         nomeLower.contains('aurículo') ||
         srvUkey == '5' ||
         srvUkey == '23';

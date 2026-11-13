@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:backend/config/migracoes.dart';
+import 'package:backend/repositories/admin_repository.dart';
 import 'package:backend/repositories/atendimento_repository.dart';
 import 'package:backend/repositories/disponibilidade_repository.dart';
 import 'package:backend/repositories/paciente_repository.dart';
@@ -21,7 +23,8 @@ Middleware corsMiddleware() {
       const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers':
+            'Content-Type, Authorization, X-Admin-Id',
       };
 
       if (request.method == 'OPTIONS') {
@@ -52,6 +55,8 @@ Future<Response> _protegido(
 ) async {
   try {
     return await acao();
+  } on AdminRecusa catch (e) {
+    return _erro(e.codigo, e.mensagem);
   } on FormatException {
     return _erro(400, 'JSON inválido.');
   } catch (e) {
@@ -66,15 +71,50 @@ Future<Map<String, dynamic>?> _corpo(Request request) async {
   return dados is Map<String, dynamic> ? dados : null;
 }
 
+/// Rotas /admin/* só respondem ao administrador (cabeçalho X-Admin-Id).
+Middleware adminMiddleware(AdminRepository admin) {
+  return (Handler innerHandler) {
+    return (Request request) async {
+      if (!request.url.path.startsWith('admin/')) {
+        return innerHandler(request);
+      }
+      final id = request.headers['x-admin-id'];
+      try {
+        if (id == null || id.isEmpty || !await admin.ehAdmin(id)) {
+          return _erro(403, 'Acesso restrito ao administrador.');
+        }
+      } catch (e) {
+        print('Erro interno ao validar administrador: $e');
+        return _erro(500, 'Erro interno do servidor.');
+      }
+      return innerHandler(request);
+    };
+  };
+}
+
+/// "2026-11-20T14:30" -> DateTime (horário local).
+DateTime? _dataHora(Object? valor) =>
+    valor is String ? DateTime.tryParse(valor) : null;
+
 String? _texto(Object? valor) =>
     valor is String && valor.trim().isNotEmpty ? valor.trim() : null;
 
-Future<void> main() async {
+/// Liga o servidor. Erros de rede que acontecem fora de uma requisição
+/// (por exemplo, uma conexão parada com o banco que cai) são só registrados:
+/// não derrubam o servidor.
+void main() {
+  runZonedGuarded(_iniciar, (erro, _) {
+    print('Aviso: erro de conexão ignorado: $erro');
+  });
+}
+
+Future<void> _iniciar() async {
   final router = Router();
   final authService = AuthService();
   final pacienteRepository = PacienteRepository();
   final atendimentoRepository = AtendimentoRepository();
   final disponibilidadeRepository = DisponibilidadeRepository();
+  final adminRepository = AdminRepository();
 
   // Tabelas próprias do app (disponibilidade e status dos atendimentos).
   try {
@@ -102,6 +142,12 @@ Future<void> main() async {
           login.trim().isEmpty ||
           senha.isEmpty) {
         return _erro(400, 'Informe login e senha.');
+      }
+
+      // Administrador (admrokuzen) primeiro; senão, terapeuta.
+      final admin = await adminRepository.autenticar(login, senha);
+      if (admin != null) {
+        return _ok({'message': 'Credenciais validadas.', 'usuario': admin});
       }
 
       final usuario = await authService.autenticar(login: login, senha: senha);
@@ -393,9 +439,178 @@ Future<void> main() async {
     });
   });
 
+  // ----------------------------------------------------- administrador
+
+  router.get('/admin/unidades', (Request request) {
+    return _protegido('listar unidades', () async {
+      final todas = request.url.queryParameters['todas'] == '1';
+      return _ok({
+        'unidades': await adminRepository.unidades(soComServicos: !todas),
+      });
+    });
+  });
+
+  /// Serviços, durações e preços (iguais ao agendamento do site).
+  router.get('/admin/servicos', (Request request) {
+    return _protegido('listar serviços', () async {
+      return _ok({'servicos': adminRepository.servicos()});
+    });
+  });
+
+  /// Terapeutas da unidade no dia, com período e horários livres.
+  /// GET /admin/agenda-terapeutas?unidade=..&data=2026-11-20&duracao=60&agora=..
+  router.get('/admin/agenda-terapeutas', (Request request) {
+    return _protegido('montar agenda dos terapeutas', () async {
+      final q = request.url.queryParameters;
+      final unidade = _texto(q['unidade']);
+      final dia = _dataHora(q['data']);
+      final duracao = int.tryParse(q['duracao'] ?? '');
+      if (unidade == null || dia == null || duracao == null || duracao <= 0) {
+        return _erro(400, 'Informe unidade, data e duração.');
+      }
+      return _ok({
+        'terapeutas': await adminRepository.agendaTerapeutas(
+          unidadeId: unidade,
+          dia: dia,
+          duracao: duracao,
+          agora: _dataHora(q['agora']) ?? DateTime.now(),
+        ),
+      });
+    });
+  });
+
+  /// GET /admin/agendamentos?data=2026-11-20&unidade=..&agora=..
+  router.get('/admin/agendamentos', (Request request) {
+    return _protegido('listar agendamentos', () async {
+      final q = request.url.queryParameters;
+      final dia = _dataHora(q['data']);
+      if (dia == null) return _erro(400, 'Informe a data.');
+      return _ok({
+        'agendamentos': await adminRepository.agendamentosDoDia(
+          dia: dia,
+          unidadeId: _texto(q['unidade']),
+          agora: _dataHora(q['agora']) ?? DateTime.now(),
+        ),
+      });
+    });
+  });
+
+  /// POST /admin/agendamentos
+  /// {"unidade","servico","duracao","combo","terapeuta","paciente",
+  ///  "inicio": "2026-11-20T14:00","agora": "..."}
+  router.post('/admin/agendamentos', (Request request) {
+    return _protegido('criar agendamento', () async {
+      final body = await _corpo(request);
+      final unidade = _texto(body?['unidade']);
+      final servico = _texto(body?['servico']);
+      final duracao = body?['duracao'];
+      final terapeuta = _texto(body?['terapeuta']);
+      final paciente = _texto(body?['paciente']);
+      final inicio = _dataHora(body?['inicio']);
+      if (unidade == null ||
+          servico == null ||
+          duracao is! int ||
+          terapeuta == null ||
+          paciente == null ||
+          inicio == null) {
+        return _erro(400, 'Dados do agendamento incompletos.');
+      }
+      final id = await adminRepository.agendar(
+        unidadeId: unidade,
+        servicoId: servico,
+        duracao: duracao,
+        comCombo: body?['combo'] == true,
+        terapeutaId: terapeuta,
+        pacienteId: paciente,
+        inicio: inicio,
+        agora: _dataHora(body?['agora']) ?? DateTime.now(),
+      );
+      return _ok({'id': id});
+    });
+  });
+
+  router.put('/admin/agendamentos/<id>/cancelar', (Request request, String id) {
+    return _protegido('cancelar agendamento $id', () async {
+      await adminRepository.cancelar(id);
+      return _ok({'message': 'Agendamento cancelado.'});
+    });
+  });
+
+  router.get('/admin/terapeutas', (Request request) {
+    return _protegido('listar terapeutas', () async {
+      return _ok({'terapeutas': await adminRepository.terapeutas()});
+    });
+  });
+
+  router.post('/admin/terapeutas', (Request request) {
+    return _protegido('cadastrar terapeuta', () async {
+      final dados = DadosTerapeuta.deJson(await _corpo(request));
+      if (dados == null) return _erro(400, 'Dados do terapeuta inválidos.');
+      final id = await adminRepository.criarTerapeuta(dados);
+      return _ok({'id': id});
+    });
+  });
+
+  router.put('/admin/terapeutas/<id>', (Request request, String id) {
+    return _protegido('editar terapeuta $id', () async {
+      final dados = DadosTerapeuta.deJson(await _corpo(request));
+      if (dados == null) return _erro(400, 'Dados do terapeuta inválidos.');
+      await adminRepository.editarTerapeuta(id, dados);
+      return _ok({'message': 'Terapeuta atualizado.'});
+    });
+  });
+
+  router.delete('/admin/terapeutas/<id>', (Request request, String id) {
+    return _protegido('excluir terapeuta $id', () async {
+      await adminRepository.excluirTerapeuta(
+        id,
+        _dataHora(request.url.queryParameters['agora']) ?? DateTime.now(),
+      );
+      return _ok({'message': 'Terapeuta excluído.'});
+    });
+  });
+
+  /// GET /admin/pacientes?busca=maria
+  router.get('/admin/pacientes', (Request request) {
+    return _protegido('listar pacientes (admin)', () async {
+      return _ok(await adminRepository.pacientes(
+        busca: request.url.queryParameters['busca'],
+      ));
+    });
+  });
+
+  router.post('/admin/pacientes', (Request request) {
+    return _protegido('cadastrar paciente (admin)', () async {
+      final dados = DadosPaciente.deJson(await _corpo(request));
+      if (dados == null) return _erro(400, 'Dados do paciente inválidos.');
+      return _ok({'paciente': await pacienteRepository.cadastrar(dados)});
+    });
+  });
+
+  router.put('/admin/pacientes/<id>', (Request request, String id) {
+    return _protegido('editar paciente (admin) $id', () async {
+      final dados = DadosPaciente.deJson(await _corpo(request));
+      if (dados == null) return _erro(400, 'Dados do paciente inválidos.');
+      final ok = await pacienteRepository.atualizar(id, dados);
+      if (!ok) return _erro(404, 'Paciente não encontrado.');
+      return _ok({'message': 'Paciente atualizado.'});
+    });
+  });
+
+  router.delete('/admin/pacientes/<id>', (Request request, String id) {
+    return _protegido('excluir paciente $id', () async {
+      await adminRepository.excluirPaciente(
+        id,
+        _dataHora(request.url.queryParameters['agora']) ?? DateTime.now(),
+      );
+      return _ok({'message': 'Paciente excluído.'});
+    });
+  });
+
   final handler = Pipeline()
       .addMiddleware(logRequests())
       .addMiddleware(corsMiddleware())
+      .addMiddleware(adminMiddleware(adminRepository))
       .addHandler(router.call);
 
   // Por padrão só este computador acessa o backend. Para testar no iPhone
