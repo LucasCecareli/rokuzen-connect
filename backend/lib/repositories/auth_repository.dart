@@ -1,4 +1,5 @@
 import 'package:backend/config/database.dart';
+import 'package:backend/repositories/admin_repository.dart';
 
 class AuthRepository {
   Future<List<Map<String, String?>>> buscarTerapeutasPorLogin(
@@ -120,6 +121,22 @@ class AuthRepository {
           final h = int.tryParse(endStr.substring(11, 13));
           final m = int.tryParse(endStr.substring(14, 16));
           if (h != null && m != null) fimTurno = h * 60 + m;
+        }
+      }
+
+      // Escala do cadastro (definida pelo administrador) vale como turno
+      // padrão nos dias de semana.
+      final cadastro = await connection.execute(
+        'SELECT dias, inicio, fim FROM app_escala WHERE usr_ukey = :usuarioId LIMIT 1',
+        {'usuarioId': usuarioId},
+      );
+      if (cadastro.rows.isNotEmpty) {
+        final r = cadastro.rows.first;
+        final escala = EscalaTerapeuta.doBanco(
+            r.colByName('dias'), r.colByName('inicio'), r.colByName('fim'));
+        if (escala != null) {
+          inicioTurno = escala.inicio;
+          fimTurno = escala.fim;
         }
       }
 

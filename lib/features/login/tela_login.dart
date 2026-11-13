@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../data/models/modelos.dart';
 import '../../data/repositorio.dart';
+import '../../data/services/admin_api_service.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/login_preferences_service.dart';
 import '../../core/app_text.dart';
@@ -17,8 +18,15 @@ enum _Estado { ocioso, carregando, sucesso, erro }
 /// Tela de login do terapeuta.
 /// Autenticação real pelo backend Rokuzen Connect.
 class TelaLogin extends StatefulWidget {
-  const TelaLogin({super.key, required this.aoEntrar});
+  const TelaLogin({
+    super.key,
+    required this.aoEntrar,
+    required this.aoEntrarAdmin,
+  });
   final VoidCallback aoEntrar;
+
+  /// Login do administrador (admrokuzen): abre a área de administração.
+  final VoidCallback aoEntrarAdmin;
 
   @override
   State<TelaLogin> createState() => _TelaLoginState();
@@ -133,6 +141,17 @@ class _TelaLoginState extends State<TelaLogin> {
         }
 
         final usuario = resultado['usuario'];
+        if (usuario is Map<String, dynamic> && usuario['perfil'] == 'admin') {
+          SessaoAdmin.entrar(
+            id: '${usuario['id']}',
+            nome: usuario['nome']?.toString() ?? 'Administrador',
+          );
+          if (!mounted) return;
+          _senha.clear();
+          setState(() => _estado = _Estado.sucesso);
+          widget.aoEntrarAdmin();
+          return;
+        }
         if (usuario is Map<String, dynamic>) {
           repositorio.definirTerapeutaLogado(Terapeuta(
             id: usuario['id']?.toString() ?? '1',

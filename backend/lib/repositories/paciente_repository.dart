@@ -63,11 +63,11 @@ class PacienteRepository {
     }
   }
 
-  /// Cadastra um cliente novo, ligado à terapeuta que cadastrou, e devolve
-  /// o registro salvo.
+  /// Cadastra um cliente novo e devolve o registro salvo. Com
+  /// [terapeutaId], liga o paciente à terapeuta que cadastrou.
   Future<Map<String, String?>> cadastrar(
     DadosPaciente dados, {
-    required String terapeutaId,
+    String? terapeutaId,
   }) async {
     final connection = await Database.connect();
     try {
@@ -88,13 +88,15 @@ class PacienteRepository {
       );
       // Liga o paciente à terapeuta (aparece na lista dela mesmo antes do
       // primeiro atendimento).
-      await connection.execute(
-        '''
-        INSERT INTO app_paciente_terapeuta (cli_ukey, usr_ukey)
-        VALUES (:id, :terapeutaId)
-        ''',
-        {'id': id, 'terapeutaId': terapeutaId},
-      );
+      if (terapeutaId != null) {
+        await connection.execute(
+          '''
+          INSERT INTO app_paciente_terapeuta (cli_ukey, usr_ukey)
+          VALUES (:id, :terapeutaId)
+          ''',
+          {'id': id, 'terapeutaId': terapeutaId},
+        );
+      }
       return {
         'id': id,
         'nome': dados.nome,

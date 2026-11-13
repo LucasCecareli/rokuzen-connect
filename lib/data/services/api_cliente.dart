@@ -16,7 +16,14 @@ class ApiException implements Exception {
 /// Chamadas HTTP ao backend do grupo (JSON, com tempo limite).
 abstract final class ApiCliente {
   static const _tempoLimite = Duration(seconds: 20);
-  static const _cabecalhos = {'Content-Type': 'application/json'};
+
+  /// Id do administrador logado (enviado nas rotas /admin/*).
+  static String? adminId;
+
+  static Map<String, String> get _cabecalhos => {
+        'Content-Type': 'application/json',
+        'X-Admin-Id': ?adminId,
+      };
 
   static Uri _uri(String caminho, [Map<String, String>? query]) =>
       Uri.parse('${AuthApiService.baseUrl}$caminho')
@@ -26,7 +33,7 @@ abstract final class ApiCliente {
     String caminho, [
     Map<String, String>? query,
   ]) =>
-      _enviar(() => http.get(_uri(caminho, query)));
+      _enviar(() => http.get(_uri(caminho, query), headers: _cabecalhos));
 
   static Future<Map<String, dynamic>> post(String caminho, Object corpo) =>
       _enviar(() => http.post(_uri(caminho),
@@ -40,7 +47,8 @@ abstract final class ApiCliente {
     String caminho, [
     Map<String, String>? query,
   ]) =>
-      _enviar(() => http.delete(_uri(caminho, query)));
+      _enviar(
+          () => http.delete(_uri(caminho, query), headers: _cabecalhos));
 
   static Future<Map<String, dynamic>> _enviar(
     Future<http.Response> Function() requisicao,
